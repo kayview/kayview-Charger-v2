@@ -142,18 +142,31 @@ class _LicenseScreenState extends State<LicenseScreen> {
     final email = emailCtrl.text.trim();
     final key = keyCtrl.text.trim().toUpperCase();
     if (email.isEmpty || key.isEmpty) { setState(() => status = 'Enter email + license key'); return; }
-    setState(() { loading = true; status = 'Verifying with KAYVIEW Cloud...'; });
-    try {
-      final res = await http.post(Uri.parse('$API/api/verify-key'), headers: {'Content-Type': 'application/json'}, body: jsonEncode({'email': email, 'key': key}));
-      final data = jsonDecode(res.body);
-      if (data['valid'] == true || data['success'] == true) {
-        if (!mounted) return;
-        Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => DashboardScreen(email: email, licenseKey: key)));
-      } else {
-        setState(() => status = '❌ ${data['reason'] ?? 'Key not found — Check Key Shop'}');
+    setState(() { loading = true; status = 'Waking KAYVIEW Cloud... (try 1/3)'; });
+    // Wake up Render first - free tier sleeps
+    try { await http.get(Uri.parse('$API/')).timeout(const Duration(seconds: 10)); } catch (_) {}
+    for (int attempt = 1; attempt <= 3; attempt++) {
+      try {
+        setState(() => status = 'Verifying with KAYVIEW Cloud... (try $attempt/3)');
+        final res = await http.post(Uri.parse('$API/api/verify-key'), headers: {'Content-Type': 'application/json'}, body: jsonEncode({'email': email, 'key': key})).timeout(const Duration(seconds: 20));
+        final data = jsonDecode(res.body);
+        if (data['valid'] == true || data['success'] == true) {
+          if (!mounted) return;
+          Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => DashboardScreen(email: email, licenseKey: key)));
+          return;
+        } else {
+          setState(() => status = '❌ ${data['reason'] ?? 'Key not found — Check Key Shop'}');
+          break;
+        }
+      } catch (e) {
+        if (attempt == 3) {
+          setState(() => status = '❌ Still cant reach server. Turn OFF Airplane Mode, turn ON Data/WiFi, open kayview-api.onrender.com in Chrome to wake it, then try again. Error: $e');
+        } else {
+          await Future.delayed(const Duration(seconds: 3));
+        }
       }
-    } catch (e) { setState(() => status = '❌ Network error: $e'); }
-    finally { if (mounted) setState(() => loading = false); }
+    }
+    if (mounted) setState(() => loading = false);
   }
 
   @override Widget build(BuildContext context) {
@@ -209,7 +222,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   @override void initState() { super.initState(); checkCloud(); }
   Future<void> checkCloud() async {
     try {
-      final r = await http.get(Uri.parse('$API/api/meta'));
+      final r = await http.get(Uri.parse('$API/api/meta')).timeout(const Duration(seconds: 15));
       final d = jsonDecode(r.body);
       setState(() { cloudStatus = 'ONLINE • ${d['keys'] ?? 6} keys'; hostsOnline = (d['hostsOnlineReal'] ?? 0) as int; });
     } catch (_) { setState(() => cloudStatus = 'Offline — Check internet'); }
@@ -217,7 +230,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   @override Widget build(BuildContext context) {
     final pages = [
-      // OVERVIEW
       SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text('Welcome back,', style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w800).copyWith(height: 1.1)),
         Text(widget.email, style: const TextStyle(color: Colors.grey)),
@@ -238,13 +250,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
         const SizedBox(height: 12),
         Container(padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20)), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [const Text('☁️ KAYVIEW Cloud — ONLINE', style: TextStyle(fontWeight: FontWeight.bold)), const Text('Your EAs keep running even when your phone is off.', style: TextStyle(color: Colors.grey, fontSize: 13)), const SizedBox(height: 10), SizedBox(width: double.infinity, child: OutlinedButton(onPressed: checkCloud, child: const Text('↻ Refresh Status')))])),
       ])),
-      // KEYS
       SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(children: [
         Container(padding: const EdgeInsets.all(18), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20)), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [const Text('🔑 Your Key', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)), const SizedBox(height: 6), Container(padding: const EdgeInsets.all(14), decoration: BoxDecoration(color: const Color(0xFFF8FAFC), border: Border.all(color: const Color(0xFFE2E8F0)), borderRadius: BorderRadius.circular(12)), child: Row(children: [Expanded(child: Text(widget.licenseKey, style: const TextStyle(fontWeight: FontWeight.w800, color: Color(0xFF2563EB), fontSize: 16))), const Text('● ACTIVE', style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold, fontSize: 12))])), const SizedBox(height: 6), Text(widget.email, style: const TextStyle(color: Colors.grey)), const SizedBox(height: 12), SizedBox(width: double.infinity, child: ElevatedButton(onPressed: openWeb, child: const Text('Manage Keys on Web →')))])),
         const SizedBox(height: 12),
         Container(padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20)), child: const Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('How to use', style: TextStyle(fontWeight: FontWeight.bold)), Text('Same key works in MT5 EA Bridge. Paste this key in EA settings + your MT4/MT5 login to start hosting.', style: TextStyle(color: Colors.grey, fontSize: 13, height: 1.5))])),
       ])),
-      // HOSTING
       SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         const Text('☁️ Cloud Hosting', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800)),
         const Text('Run your EA 24/7 — No PC, No VPS.', style: TextStyle(color: Colors.grey)),
@@ -253,7 +263,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
         const SizedBox(height: 12),
         Container(padding: const EdgeInsets.all(18), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20)), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [const Text('Start New Hosting Session', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)), const SizedBox(height: 12), _Field(label: 'Your KAYVIEW Key', initial: widget.licenseKey), _Field(label: 'MT4 / MT5 Login', hint: 'e.g. 12345678'), _Field(label: 'MT Server', hint: 'e.g. Deriv-Server'), _Field(label: 'EA Name', hint: 'e.g. KAYVIEW Sniper EA'), const SizedBox(height: 8), SizedBox(width: double.infinity, child: ElevatedButton(onPressed: () { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Hosting STARTED ✓ Your EA is ONLINE 24/7 on KAYVIEW Cloud'))); }, style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF2563EB), padding: const EdgeInsets.symmetric(vertical: 14), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(99))), child: const Text('▶ Start Hosting 24/7', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold))))])),
       ])),
-      // SHOP
       SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(children: [
         Container(padding: const EdgeInsets.all(18), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20)), child: Column(children: [Container(width: 70, height: 70, decoration: const BoxDecoration(color: Color(0xFF0F172A), shape: BoxShape.circle), child: const Center(child: Text('K', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 28)))), const SizedBox(height: 10), const Text('PER KEY', style: TextStyle(color: Colors.grey, fontSize: 12)), const Text('R100', style: TextStyle(color: Color(0xFF2563EB), fontSize: 36, fontWeight: FontWeight.w800)), const Text('Pay via TymeBank • Immediate Payment', style: TextStyle(color: Colors.grey)), const SizedBox(height: 12), Container(padding: const EdgeInsets.all(14), decoration: BoxDecoration(color: const Color(0xFF0F172A), borderRadius: BorderRadius.circular(16)), child: const Column(children: [Text('KAYVIEW BANKING DETAILS', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)), SizedBox(height: 6), Text('🏦 TymeBank\n💳 51107457045\n📝 Ref: MT-9994-KEYS-1', style: TextStyle(color: Colors.white70, height: 1.6), textAlign: TextAlign.center)])), const SizedBox(height: 12), SizedBox(width: double.infinity, child: ElevatedButton(onPressed: openWeb, child: const Text('Buy in Key Shop on Web →'))), const SizedBox(height: 8), SizedBox(width: double.infinity, child: ElevatedButton.icon(onPressed: openWhatsApp, icon: const Text('🟢'), label: const Text('Send Proof on WhatsApp', style: TextStyle(color: Colors.white)), style: ElevatedButton.styleFrom(backgroundColor: Colors.green, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(99)))))])),
       ])),
