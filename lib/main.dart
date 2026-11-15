@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:url_launcher/url_launcher.dart';
@@ -18,6 +20,7 @@ class KayviewApp extends StatelessWidget {
   }
 }
 
+const String API_HOST = 'kayview-api.onrender.com';
 const String API = 'https://kayview-api.onrender.com';
 const String WEB_URL = 'https://kayview-api.onrender.com/prime-keys.html';
 const String WA_URL = 'https://wa.me/27730819637?text=Hi%20KAYVIEW%2C%20I%20paid%20for%20a%20key';
@@ -26,10 +29,40 @@ Future<void> openWeb() async {
   final uri = Uri.parse(WEB_URL);
   if (await canLaunchUrl(uri)) await launchUrl(uri, mode: LaunchMode.externalApplication);
 }
-
 Future<void> openWhatsApp() async {
   final uri = Uri.parse(WA_URL);
   if (await canLaunchUrl(uri)) await launchUrl(uri, mode: LaunchMode.externalApplication);
+}
+
+// ===== BUILT-IN DNS - bypasses bad WiFi DNS, like Chrome does =====
+Future<String> _dohIp() async {
+  final r = await http.get(Uri.parse('https://dns.google/resolve?name=$API_HOST&type=A')).timeout(const Duration(seconds: 10));
+  final d = jsonDecode(r.body);
+  final ans = d['Answer'] as List;
+  return ans.first['data'] as String; // e.g. 216.24.57.x
+}
+
+Future<String> _rawRequest(String method, String path, {Map<String, dynamic>? body}) async {
+  final ip = await _dohIp(); // DNS over HTTPS, not your router
+  final socket = await Socket.connect(ip, 443, timeout: const Duration(seconds: 10));
+  final secure = await SecureSocket.secure(socket, host: API_HOST); // SNI = real domain
+  final bodyStr = body == null ? '' : jsonEncode(body);
+  final req = StringBuffer();
+  req.write('$method $path HTTP/1.0\r\n');
+  req.write('Host: $API_HOST\r\n');
+  req.write('Content-Type: application/json\r\n');
+  req.write('Accept: application/json\r\n');
+  req.write('Connection: close\r\n');
+  req.write('Content-Length: ${utf8.encode(bodyStr).length}\r\n\r\n');
+  req.write(bodyStr);
+  secure.write(req.toString());
+  await secure.flush();
+  final bytes = await secure.fold<List<int>>([], (a, b) => a..addAll(b)).timeout(const Duration(seconds: 20));
+  await secure.close();
+  final full = utf8.decode(bytes, allowMalformed: true);
+  final idx = full.indexOf('\r\n\r\n');
+  if (idx == -1) throw Exception('Bad response');
+  return full.substring(idx + 4);
 }
 
 // ============ LANDING ============
@@ -74,18 +107,11 @@ class LandingScreen extends StatelessWidget {
                       const SizedBox(width: 8),
                       Expanded(child: OutlinedButton(onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const LicenseScreen())), style: OutlinedButton.styleFrom(side: const BorderSide(color: Colors.white24), padding: const EdgeInsets.symmetric(vertical: 13), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(99))), child: const Text('Sign in →', style: TextStyle(color: Colors.white)))),
                     ]),
-                    const SizedBox(height: 20),
-                    const Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                      _HeroStat(v: '24/7', l: 'Cloud Hosting'),
-                      _HeroStat(v: 'MT4 • MT5', l: 'Native'),
-                      _HeroStat(v: 'R100', l: 'Per Key'),
-                    ]),
                   ],
                 ),
               ),
               const SizedBox(height: 14),
               _InfoCard(title: '☁️ Cloud Hosting — Like Gizmo Pro', desc: 'Connect your MT4/MT5 login, tap Start Hosting, close your phone. Your EA keeps trading on KAYVIEW Cloud.', btnText: 'Start Hosting →', onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const LicenseScreen()))),
-              _InfoCard(title: '📈 Sniper AI Scanner', desc: '43 structural setups, multi-timeframe, wick-entry + TP/SL. No guesswork, no noise.', btnText: '', onTap: () {}),
               _PlanCard(),
             ],
           ),
@@ -95,16 +121,10 @@ class LandingScreen extends StatelessWidget {
   }
 }
 
-class _HeroStat extends StatelessWidget {
-  final String v; final String l;
-  const _HeroStat({required this.v, required this.l});
-  @override Widget build(BuildContext context) => Column(children: [Text(v, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)), Text(l, style: const TextStyle(color: Color(0xFFCBD5E1), fontSize: 12))]);
-}
-
 class _InfoCard extends StatelessWidget {
   final String title, desc, btnText; final VoidCallback onTap;
   const _InfoCard({required this.title, required this.desc, required this.btnText, required this.onTap});
-  @override Widget build(BuildContext context) => Container(margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6), padding: const EdgeInsets.all(18), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 16)]), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)), const SizedBox(height: 6), Text(desc, style: const TextStyle(color: Colors.grey, fontSize: 13, height: 1.5)), if (btnText.isNotEmpty) ...[const SizedBox(height: 12), ElevatedButton(onPressed: onTap, style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF2563EB), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(99))), child: Text(btnText, style: const TextStyle(color: Colors.white)))]]));
+  @override Widget build(BuildContext context) => Container(margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6), padding: const EdgeInsets.all(18), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20)), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)), const SizedBox(height: 6), Text(desc, style: const TextStyle(color: Colors.grey, fontSize: 13, height: 1.5)), if (btnText.isNotEmpty) ...[const SizedBox(height: 12), ElevatedButton(onPressed: onTap, style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF2563EB), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(99))), child: Text(btnText, style: const TextStyle(color: Colors.white)))]]));
 }
 
 class _PlanCard extends StatelessWidget {
@@ -126,7 +146,7 @@ class _PlanRow extends StatelessWidget {
   @override Widget build(BuildContext context) => Container(margin: const EdgeInsets.only(bottom: 10), padding: const EdgeInsets.all(14), decoration: BoxDecoration(color: highlight ? const Color(0xFFEFF6FF) : const Color(0xFFF8FAFC), border: Border.all(color: highlight ? const Color(0xFFBFDBFE) : Colors.transparent), borderRadius: BorderRadius.circular(14)), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(name, style: const TextStyle(fontWeight: FontWeight.bold)), Text(price, style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w800)), Text(per, style: const TextStyle(color: Colors.grey, fontSize: 12)), const SizedBox(height: 6), Text(features, style: const TextStyle(fontSize: 13, height: 1.6, color: Color(0xFF475569)))]));
 }
 
-// ============ LICENSE / VERIFY ============
+// ============ LICENSE ============
 class LicenseScreen extends StatefulWidget {
   const LicenseScreen({super.key});
   @override State<LicenseScreen> createState() => _LicenseScreenState();
@@ -142,29 +162,27 @@ class _LicenseScreenState extends State<LicenseScreen> {
     final email = emailCtrl.text.trim();
     final key = keyCtrl.text.trim().toUpperCase();
     if (email.isEmpty || key.isEmpty) { setState(() => status = 'Enter email + license key'); return; }
-    setState(() { loading = true; status = 'Waking KAYVIEW Cloud... (try 1/3)'; });
-    // Wake up Render first - free tier sleeps
-    try { await http.get(Uri.parse('$API/')).timeout(const Duration(seconds: 10)); } catch (_) {}
-    for (int attempt = 1; attempt <= 3; attempt++) {
+    setState(() { loading = true; status = 'Waking KAYVIEW Cloud...'; });
+    try {
+      // Try normal way first (fast), then built-in DNS way
+      String bodyStr;
       try {
-        setState(() => status = 'Verifying with KAYVIEW Cloud... (try $attempt/3)');
-        final res = await http.post(Uri.parse('$API/api/verify-key'), headers: {'Content-Type': 'application/json'}, body: jsonEncode({'email': email, 'key': key})).timeout(const Duration(seconds: 20));
-        final data = jsonDecode(res.body);
-        if (data['valid'] == true || data['success'] == true) {
-          if (!mounted) return;
-          Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => DashboardScreen(email: email, licenseKey: key)));
-          return;
-        } else {
-          setState(() => status = '❌ ${data['reason'] ?? 'Key not found — Check Key Shop'}');
-          break;
-        }
-      } catch (e) {
-        if (attempt == 3) {
-          setState(() => status = '❌ Still cant reach server. Turn OFF Airplane Mode, turn ON Data/WiFi, open kayview-api.onrender.com in Chrome to wake it, then try again. Error: $e');
-        } else {
-          await Future.delayed(const Duration(seconds: 3));
-        }
+        final res = await http.post(Uri.parse('$API/api/verify-key'), headers: {'Content-Type': 'application/json'}, body: jsonEncode({'email': email, 'key': key})).timeout(const Duration(seconds: 12));
+        bodyStr = res.body;
+      } catch (_) {
+        setState(() => status = 'WiFi DNS blocked — using built-in DNS...');
+        bodyStr = await _rawRequest('POST', '/api/verify-key', body: {'email': email, 'key': key});
       }
+      final data = jsonDecode(bodyStr);
+      if (data['valid'] == true || data['success'] == true) {
+        if (!mounted) return;
+        Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => DashboardScreen(email: email, licenseKey: key)));
+        return;
+      } else {
+        setState(() => status = '❌ ${data['reason'] ?? 'Key not found — Check Key Shop'}');
+      }
+    } catch (e) {
+      setState(() => status = '❌ Cant reach server. Error: $e');
     }
     if (mounted) setState(() => loading = false);
   }
@@ -172,12 +190,12 @@ class _LicenseScreenState extends State<LicenseScreen> {
   @override Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF1F5F9),
-      appBar: AppBar(title: const Text('KAYVIEW — Login'), backgroundColor: Colors.white, surfaceTintColor: Colors.white),
+      appBar: AppBar(title: const Text('KAYVIEW — Login'), backgroundColor: Colors.white),
       body: SingleChildScrollView(padding: const EdgeInsets.all(20), child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        Container(padding: const EdgeInsets.all(20), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(24), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 20)]), child: Column(children: [
+        Container(padding: const EdgeInsets.all(20), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(24)), child: Column(children: [
           Container(width: 52, height: 52, decoration: const BoxDecoration(color: Color(0xFF0F172A), shape: BoxShape.circle), child: const Center(child: Text('K', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 22)))),
           const SizedBox(height: 10),
-          const Text('Welcome back', style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800, fontFamily: 'Georgia')),
+          const Text('Welcome back', style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800)),
           const Text('Login to KAYVIEW', style: TextStyle(color: Colors.grey)),
           const SizedBox(height: 18),
           const Align(alignment: Alignment.centerLeft, child: Text('Email (same as Web login)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13))),
@@ -190,15 +208,13 @@ class _LicenseScreenState extends State<LicenseScreen> {
           const SizedBox(height: 18),
           SizedBox(width: double.infinity, child: ElevatedButton(onPressed: loading ? null : verifyKey, style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF2563EB), padding: const EdgeInsets.symmetric(vertical: 15), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(99))), child: loading ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) : const Text('Verify License Key', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)))),
           const SizedBox(height: 10),
-          SizedBox(width: double.infinity, child: OutlinedButton(onPressed: openWeb, style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 14), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(99))), child: const Text('Buy Key on Web — Open prime-keys.html', style: TextStyle(fontWeight: FontWeight.bold)))),
-          const SizedBox(height: 8),
-          const Text(WEB_URL, style: TextStyle(fontSize: 11, color: Colors.grey), textAlign: TextAlign.center),
-          if (status.isNotEmpty) ...[const SizedBox(height: 12), Text(status, textAlign: TextAlign.center, style: TextStyle(color: status.contains('✅') ? Colors.green : Colors.red, fontWeight: FontWeight.bold))],
+          SizedBox(width: double.infinity, child: OutlinedButton(onPressed: openWeb, style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 14), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(99))), child: const Text('Buy Key on Web →'))),
+          if (status.isNotEmpty) ...[const SizedBox(height: 12), Text(status, textAlign: TextAlign.center, style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold))],
         ])),
         const SizedBox(height: 14),
         Container(padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20)), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           const Text('No key yet?', style: TextStyle(fontWeight: FontWeight.bold)),
-          const Text('1. Tap Buy Key on Web\n2. Login > Key Shop > Pay R100 to TymeBank 51107457045\n3. Send proof on WhatsApp +27 73 081 9637\n4. Wait for approval > Generate Key > Paste here', style: TextStyle(fontSize: 13, height: 1.6, color: Colors.grey)),
+          const Text('1. Tap Buy Key on Web\n2. Login > Key Shop > Pay R100 to TymeBank 51107457045\n3. Send proof on WhatsApp +27 73 081 9637', style: TextStyle(fontSize: 13, height: 1.6, color: Colors.grey)),
           const SizedBox(height: 10),
           SizedBox(width: double.infinity, child: ElevatedButton.icon(onPressed: openWhatsApp, icon: const Text('🟢'), label: const Text('Send Proof on WhatsApp', style: TextStyle(color: Colors.white)), style: ElevatedButton.styleFrom(backgroundColor: Colors.green, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(99))))),
         ])),
@@ -217,60 +233,35 @@ class DashboardScreen extends StatefulWidget {
 class _DashboardScreenState extends State<DashboardScreen> {
   int idx = 0;
   String cloudStatus = 'Checking...';
-  int hostsOnline = 0;
-
   @override void initState() { super.initState(); checkCloud(); }
   Future<void> checkCloud() async {
     try {
-      final r = await http.get(Uri.parse('$API/api/meta')).timeout(const Duration(seconds: 15));
-      final d = jsonDecode(r.body);
-      setState(() { cloudStatus = 'ONLINE • ${d['keys'] ?? 6} keys'; hostsOnline = (d['hostsOnlineReal'] ?? 0) as int; });
-    } catch (_) { setState(() => cloudStatus = 'Offline — Check internet'); }
+      final b = await _rawRequest('GET', '/api/meta');
+      final d = jsonDecode(b);
+      setState(() => cloudStatus = 'ONLINE • ${d['keys'] ?? 6} keys');
+    } catch (_) {
+      try {
+        final r = await http.get(Uri.parse('$API/api/meta')).timeout(const Duration(seconds: 10));
+        final d = jsonDecode(r.body);
+        setState(() => cloudStatus = 'ONLINE • ${d['keys'] ?? 6} keys');
+      } catch (_) { setState(() => cloudStatus = 'Offline — Check internet'); }
+    }
   }
-
   @override Widget build(BuildContext context) {
     final pages = [
       SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text('Welcome back,', style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w800).copyWith(height: 1.1)),
+        const Text('Welcome back,', style: TextStyle(fontSize: 26, fontWeight: FontWeight.w800)),
         Text(widget.email, style: const TextStyle(color: Colors.grey)),
         const SizedBox(height: 14),
-        Row(children: [
-          Expanded(child: _StatCard(icon: '🔑', num: '6', label: 'STOCK KEYS')),
-          const SizedBox(width: 10),
-          Expanded(child: _StatCard(icon: '📈', num: '1', label: 'ACTIVE')),
-        ]),
-        const SizedBox(height: 10),
-        Row(children: [
-          Expanded(child: _StatCard(icon: '👥', num: '0', label: 'STUDENTS')),
-          const SizedBox(width: 10),
-          Expanded(child: _StatCard(icon: '🤖', num: '1', label: 'BOTS')),
-        ]),
-        const SizedBox(height: 12),
-        Container(width: double.infinity, padding: const EdgeInsets.all(18), decoration: BoxDecoration(gradient: const LinearGradient(colors: [Color(0xFF0F172A), Color(0xFF2563EB)]), borderRadius: BorderRadius.circular(20)), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [const Text('LIVE HOSTING SESSIONS • 24/7', style: TextStyle(color: Color(0xFFBFDBFE), fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 1)), Text('$hostsOnline', style: const TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.w800)), Text('Uptime: 99.9% • $cloudStatus', style: const TextStyle(color: Colors.white70, fontSize: 12)), const SizedBox(height: 10), ElevatedButton(onPressed: () => setState(() => idx = 2), style: ElevatedButton.styleFrom(backgroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(99))), child: const Text('▶ Start Hosting', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)))])),
-        const SizedBox(height: 12),
-        Container(padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20)), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [const Text('☁️ KAYVIEW Cloud — ONLINE', style: TextStyle(fontWeight: FontWeight.bold)), const Text('Your EAs keep running even when your phone is off.', style: TextStyle(color: Colors.grey, fontSize: 13)), const SizedBox(height: 10), SizedBox(width: double.infinity, child: OutlinedButton(onPressed: checkCloud, child: const Text('↻ Refresh Status')))])),
+        Container(width: double.infinity, padding: const EdgeInsets.all(18), decoration: BoxDecoration(gradient: const LinearGradient(colors: [Color(0xFF0F172A), Color(0xFF2563EB)]), borderRadius: BorderRadius.circular(20)), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('KAYVIEW Cloud — $cloudStatus', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)), const SizedBox(height: 8), const Text('Your EA keeps running 24/7.', style: TextStyle(color: Colors.white70)), const SizedBox(height: 10), ElevatedButton(onPressed: () => setState(() => idx = 2), style: ElevatedButton.styleFrom(backgroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(99))), child: const Text('▶ Start Hosting', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)))])),
       ])),
-      SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(children: [
-        Container(padding: const EdgeInsets.all(18), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20)), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [const Text('🔑 Your Key', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)), const SizedBox(height: 6), Container(padding: const EdgeInsets.all(14), decoration: BoxDecoration(color: const Color(0xFFF8FAFC), border: Border.all(color: const Color(0xFFE2E8F0)), borderRadius: BorderRadius.circular(12)), child: Row(children: [Expanded(child: Text(widget.licenseKey, style: const TextStyle(fontWeight: FontWeight.w800, color: Color(0xFF2563EB), fontSize: 16))), const Text('● ACTIVE', style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold, fontSize: 12))])), const SizedBox(height: 6), Text(widget.email, style: const TextStyle(color: Colors.grey)), const SizedBox(height: 12), SizedBox(width: double.infinity, child: ElevatedButton(onPressed: openWeb, child: const Text('Manage Keys on Web →')))])),
-        const SizedBox(height: 12),
-        Container(padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20)), child: const Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('How to use', style: TextStyle(fontWeight: FontWeight.bold)), Text('Same key works in MT5 EA Bridge. Paste this key in EA settings + your MT4/MT5 login to start hosting.', style: TextStyle(color: Colors.grey, fontSize: 13, height: 1.5))])),
-      ])),
-      SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        const Text('☁️ Cloud Hosting', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800)),
-        const Text('Run your EA 24/7 — No PC, No VPS.', style: TextStyle(color: Colors.grey)),
-        const SizedBox(height: 12),
-        Container(padding: const EdgeInsets.all(14), decoration: BoxDecoration(color: const Color(0xFFDCFCE7), borderRadius: BorderRadius.circular(14)), child: Row(children: [const Text('● ', style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold)), Expanded(child: Text('KAYVIEW Cloud — ONLINE • $cloudStatus', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)))])),
-        const SizedBox(height: 12),
-        Container(padding: const EdgeInsets.all(18), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20)), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [const Text('Start New Hosting Session', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)), const SizedBox(height: 12), _Field(label: 'Your KAYVIEW Key', initial: widget.licenseKey), _Field(label: 'MT4 / MT5 Login', hint: 'e.g. 12345678'), _Field(label: 'MT Server', hint: 'e.g. Deriv-Server'), _Field(label: 'EA Name', hint: 'e.g. KAYVIEW Sniper EA'), const SizedBox(height: 8), SizedBox(width: double.infinity, child: ElevatedButton(onPressed: () { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Hosting STARTED ✓ Your EA is ONLINE 24/7 on KAYVIEW Cloud'))); }, style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF2563EB), padding: const EdgeInsets.symmetric(vertical: 14), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(99))), child: const Text('▶ Start Hosting 24/7', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold))))])),
-      ])),
-      SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(children: [
-        Container(padding: const EdgeInsets.all(18), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20)), child: Column(children: [Container(width: 70, height: 70, decoration: const BoxDecoration(color: Color(0xFF0F172A), shape: BoxShape.circle), child: const Center(child: Text('K', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 28)))), const SizedBox(height: 10), const Text('PER KEY', style: TextStyle(color: Colors.grey, fontSize: 12)), const Text('R100', style: TextStyle(color: Color(0xFF2563EB), fontSize: 36, fontWeight: FontWeight.w800)), const Text('Pay via TymeBank • Immediate Payment', style: TextStyle(color: Colors.grey)), const SizedBox(height: 12), Container(padding: const EdgeInsets.all(14), decoration: BoxDecoration(color: const Color(0xFF0F172A), borderRadius: BorderRadius.circular(16)), child: const Column(children: [Text('KAYVIEW BANKING DETAILS', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)), SizedBox(height: 6), Text('🏦 TymeBank\n💳 51107457045\n📝 Ref: MT-9994-KEYS-1', style: TextStyle(color: Colors.white70, height: 1.6), textAlign: TextAlign.center)])), const SizedBox(height: 12), SizedBox(width: double.infinity, child: ElevatedButton(onPressed: openWeb, child: const Text('Buy in Key Shop on Web →'))), const SizedBox(height: 8), SizedBox(width: double.infinity, child: ElevatedButton.icon(onPressed: openWhatsApp, icon: const Text('🟢'), label: const Text('Send Proof on WhatsApp', style: TextStyle(color: Colors.white)), style: ElevatedButton.styleFrom(backgroundColor: Colors.green, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(99)))))])),
-      ])),
+      SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(children: [Container(padding: const EdgeInsets.all(18), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20)), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [const Text('🔑 Your Key', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)), const SizedBox(height: 6), Text(widget.licenseKey, style: const TextStyle(fontWeight: FontWeight.w800, color: Color(0xFF2563EB), fontSize: 16)), Text(widget.email, style: const TextStyle(color: Colors.grey))]))])),
+      SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [const Text('☁️ Cloud Hosting', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800)), const Text('Run your EA 24/7 — No PC, No VPS.', style: TextStyle(color: Colors.grey)), const SizedBox(height: 12), Container(padding: const EdgeInsets.all(18), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20)), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [const Text('Start New Hosting Session', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)), const SizedBox(height: 12), _Field(label: 'Your KAYVIEW Key', initial: widget.licenseKey), _Field(label: 'MT4 / MT5 Login', hint: 'e.g. 12345678'), _Field(label: 'MT Server', hint: 'e.g. Deriv-Server'), const SizedBox(height: 8), SizedBox(width: double.infinity, child: ElevatedButton(onPressed: () { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Hosting STARTED ✓ Your EA is ONLINE 24/7'))); }, style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF2563EB), padding: const EdgeInsets.symmetric(vertical: 14), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(99))), child: const Text('▶ Start Hosting 24/7', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold))))]))])),
+      SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(children: [Container(padding: const EdgeInsets.all(18), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20)), child: Column(children: [const Text('R100', style: TextStyle(color: Color(0xFF2563EB), fontSize: 36, fontWeight: FontWeight.w800)), const Text('TymeBank 51107457045', style: TextStyle(fontWeight: FontWeight.bold)), const SizedBox(height: 12), SizedBox(width: double.infinity, child: ElevatedButton(onPressed: openWeb, child: const Text('Buy in Key Shop on Web →'))), const SizedBox(height: 8), SizedBox(width: double.infinity, child: ElevatedButton.icon(onPressed: openWhatsApp, icon: const Text('🟢'), label: const Text('Send Proof on WhatsApp', style: TextStyle(color: Colors.white)), style: ElevatedButton.styleFrom(backgroundColor: Colors.green, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(99))))]))])),
     ];
-
     return Scaffold(
       backgroundColor: const Color(0xFFF1F5F9),
-      appBar: AppBar(title: const Text('KAYVIEW • Mentor Console'), backgroundColor: Colors.white, surfaceTintColor: Colors.white, actions: [IconButton(onPressed: openWeb, icon: const Icon(Icons.open_in_browser))]),
+      appBar: AppBar(title: const Text('KAYVIEW • Mentor Console'), backgroundColor: Colors.white),
       body: pages[idx],
       bottomNavigationBar: NavigationBar(selectedIndex: idx, onDestinationSelected: (i) => setState(() => idx = i), destinations: const [
         NavigationDestination(icon: Icon(Icons.home), label: 'Overview'),
@@ -280,12 +271,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
       ]),
     );
   }
-}
-
-class _StatCard extends StatelessWidget {
-  final String icon, num, label;
-  const _StatCard({required this.icon, required this.num, required this.label});
-  @override Widget build(BuildContext context) => Container(padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20)), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(icon, style: const TextStyle(fontSize: 20)), Text(num, style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w800)), Text(label, style: const TextStyle(fontSize: 10, color: Colors.grey, fontWeight: FontWeight.bold, letterSpacing: 1))]));
 }
 
 class _Field extends StatelessWidget {
