@@ -23,7 +23,7 @@ jobs:
           channel: 'stable'
           cache: true
       - name: Fix Android Embedding
-        run: flutter create . --org com.kayview.charger --project-name kayview --platforms=android
+        run: rm -rf android && flutter create . --org com.kayview.charger --project-name kayview --platforms=android
       - name: Get packages
         run: flutter pub get
       - name: Build APK Release
