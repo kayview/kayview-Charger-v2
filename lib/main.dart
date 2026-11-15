@@ -40,9 +40,9 @@ class _KayviewWebState extends State<KayviewWeb> {
       loading = true;
       hasError = false;
     });
+    controller.clearCache();
     controller.loadRequest(
       Uri.parse('$url?v=${DateTime.now().millisecondsSinceEpoch}'),
-      headers: {'Cache-Control': 'no-cache'},
     );
   }
 
@@ -59,7 +59,12 @@ class _KayviewWebState extends State<KayviewWeb> {
             hasError = false;
           }),
           onPageFinished: (_) => setState(() => loading = false),
-          onWebResourceError: (_) {
+          onWebResourceError: (error) {
+            // Auto-retry once on CACHE_MISS, don't show Android error page
+            if (error.errorCode == -1 || error.description.contains('CACHE')) {
+              loadFresh();
+              return;
+            }
             setState(() {
               loading = false;
               hasError = true;
@@ -79,8 +84,12 @@ class _KayviewWebState extends State<KayviewWeb> {
             return NavigationDecision.navigate;
           },
         ),
-      )
-      ..loadRequest(Uri.parse(url));
+      );
+
+    // THIS is the real fix - wipe old poisoned cache before first load
+    controller.clearCache().then((_) {
+      controller.loadRequest(Uri.parse(url));
+    });
   }
 
   @override
@@ -100,16 +109,7 @@ class _KayviewWebState extends State<KayviewWeb> {
                     SizedBox(height: 12),
                     Text(
                       'WAKING UP KAYVIEW...',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: 2,
-                      ),
-                    ),
-                    SizedBox(height: 6),
-                    Text(
-                      'Render sleeps, give it 20 sec',
-                      style: TextStyle(color: Colors.white70, fontSize: 12),
+                      style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, letterSpacing: 2),
                     ),
                   ],
                 ),
@@ -121,10 +121,7 @@ class _KayviewWebState extends State<KayviewWeb> {
                   children: [
                     const Icon(Icons.wifi_off, color: Colors.white, size: 50),
                     const SizedBox(height: 12),
-                    const Text(
-                      'Could not load',
-                      style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-                    ),
+                    const Text('Could not load', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                     const SizedBox(height: 16),
                     ElevatedButton(
                       onPressed: loadFresh,
