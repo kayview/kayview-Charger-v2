@@ -1,582 +1,286 @@
-import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'package:webview_flutter/webview_flutter.dart';
-import 'package:url_launcher/url_launcher.dart';
-import 'package:flutter_overlay_window/flutter_overlay_window.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
+import 'package:url_launcher/url_launcher.dart';
 
-// ============================================================
-// KAYVIEW CHARGER - POWERED BY AMBIENT
-// AMBIENT HOST EA - KV - READY
-// CONNECTED TO: https://kayview-api.onrender.com
-// API: POST /api/verify-key {email, key} -> {valid: true/false}
-//
-// ORDER:
-// 1. SPLASH - WELCOME TO KAYVIEW CHARGER HOW TO GUIDE
-// 2. START
-// 3. LOGIN - EMAIL -> PROCEED -> CHECKING...
-// 4. PAY FOR APP - R1000 - Terms -> Buy Now
-// 5. TRADE SOLUTIONS - Total R1000.00 - Pay with Pay / Instant EFT / Capitec Pay / SnapScan
-// 6. ENTER ROBOT KEY - ACTIVATE -> Calls Ambient Host -> ACTIVATING...
-// 7. HOME - WebView ALL IN 1 + SYSTEM OVERLAY over MT5
-// ============================================================
-
-const String AMBIENT_BASE = 'https://kayview-api.onrender.com';
-
-@pragma('vm:entry-point')
-void overlayMain() { runApp(const OverlayApp()); }
-
-class OverlayApp extends StatefulWidget {
-  const OverlayApp({super.key});
-  @override
-  State<OverlayApp> createState() => _OverlayAppState();
-}
-
-class _OverlayAppState extends State<OverlayApp> {
-  bool isRunning = true;
-  @override
-  void initState() {
-    super.initState();
-    FlutterOverlayWindow.overlayListener.listen((data) {
-      if (data is String) {
-        if (data == 'STOP') setState(() => isRunning = false);
-        if (data == 'START' || data == 'RUNNING') setState(() => isRunning = true);
-      }
-    });
-  }
-  void _toggle() {
-    setState(() => isRunning = !isRunning);
-    FlutterOverlayWindow.shareData(isRunning ? 'OVERLAY_RUNNING' : 'OVERLAY_STOPPED');
-    HapticFeedback.mediumImpact();
-  }
-  @override
-  Widget build(BuildContext context) {
-    final glowColor = isRunning ? const Color(0xFFFF2E88) : const Color(0xFF9CA3AF);
-    final bgColor = isRunning ? const Color(0xFF1A0A1E) : const Color(0xFF1F2937);
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      home: Scaffold(
-        backgroundColor: Colors.transparent,
-        body: GestureDetector(
-          onTap: _toggle,
-          onPanUpdate: (details) { FlutterOverlayWindow.moveOverlay(details.globalPosition); },
-          child: Container(
-            width: 72, height: 72,
-            decoration: BoxDecoration(
-              color: bgColor, shape: BoxShape.circle,
-              border: Border.all(color: glowColor, width: 2.5),
-              boxShadow: isRunning
-                  ? [BoxShadow(color: glowColor.withOpacity(0.85), blurRadius: 22, spreadRadius: 4), BoxShadow(color: glowColor.withOpacity(0.45), blurRadius: 40, spreadRadius: 8)]
-                  : [BoxShadow(color: Colors.black.withOpacity(0.4), blurRadius: 10, spreadRadius: 1)],
-            ),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Text('KV', style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w900, letterSpacing: 1)),
-                const SizedBox(height: 1),
-                Icon(isRunning ? Icons.pause : Icons.play_arrow, color: glowColor, size: 16),
-                Text(isRunning ? 'RUNNING' : 'STOPPED', style: TextStyle(color: glowColor, fontSize: 7, fontWeight: FontWeight.bold, letterSpacing: 1)),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-  runApp(const KayviewApp());
-}
+void main() => runApp(const KayviewApp());
 
 class KayviewApp extends StatelessWidget {
   const KayviewApp({super.key});
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'KAYVIEW CHARGER',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData.dark().copyWith(scaffoldBackgroundColor: const Color(0xFF0A0A1E), primaryColor: const Color(0xFF0A2A6E)),
-      home: const KayviewRoot(),
+      title: 'KAYVIEW',
+      theme: ThemeData(useMaterial3: true, colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF2563EB))),
+      home: const LandingScreen(),
     );
   }
 }
 
-enum OnboardStep { splash, start, login, pay, tradeSolutions, robotKey, home }
+const String API = 'https://kayview-api.onrender.com';
+const String WEB_URL = 'https://kayview-api.onrender.com/prime-keys.html';
+const String WA_URL = 'https://wa.me/27730819637?text=Hi%20KAYVIEW%2C%20I%20paid%20for%20a%20key';
 
-class KayviewRoot extends StatefulWidget {
-  const KayviewRoot({super.key});
-  @override
-  State<KayviewRoot> createState() => _KayviewRootState();
+Future<void> openWeb() async {
+  final uri = Uri.parse(WEB_URL);
+  if (await canLaunchUrl(uri)) await launchUrl(uri, mode: LaunchMode.externalApplication);
 }
 
-class _KayviewRootState extends State<KayviewRoot> {
-  OnboardStep step = OnboardStep.splash;
+Future<void> openWhatsApp() async {
+  final uri = Uri.parse(WA_URL);
+  if (await canLaunchUrl(uri)) await launchUrl(uri, mode: LaunchMode.externalApplication);
+}
+
+// ============ LANDING ============
+class LandingScreen extends StatelessWidget {
+  const LandingScreen({super.key});
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFFF1F5F9),
+      body: SafeArea(
+        child: SingleChildScrollView(
+          child: Column(
+            children: [
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.fromLTRB(20, 28, 20, 32),
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(colors: [Color(0xFF0F172A), Color(0xFF1E3A8A), Color(0xFF2563EB)], begin: Alignment.topLeft, end: Alignment.bottomRight),
+                  borderRadius: BorderRadius.only(bottomLeft: Radius.circular(28), bottomRight: Radius.circular(28)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(children: [
+                      Container(width: 36, height: 36, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(11)), child: const Center(child: Text('K', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18)))),
+                      const SizedBox(width: 10),
+                      const Text('KAYVIEW • Ambient Host', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                      const Spacer(),
+                      Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5), decoration: BoxDecoration(color: Colors.green.withOpacity(0.2), borderRadius: BorderRadius.circular(99)), child: const Text('● Cloud Live', style: TextStyle(color: Colors.greenAccent, fontSize: 11, fontWeight: FontWeight.bold))),
+                    ]),
+                    const SizedBox(height: 22),
+                    const Text('KAYVIEW • INSTITUTIONAL TRADING • ZAR', style: TextStyle(color: Color(0xFF93C5FD), fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: 1.5)),
+                    const SizedBox(height: 10),
+                    const Text('Your EA, running\neven when you sleep.', style: TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.w800, height: 1.05)),
+                    const SizedBox(height: 10),
+                    const Text('KAYVIEW turns your phone into a 24/7 hosting cloud. No PC. No VPS. Just connect MT4 / MT5 and go live.', style: TextStyle(color: Color(0xFFCBD5E1), fontSize: 14, height: 1.5)),
+                    const SizedBox(height: 20),
+                    SizedBox(width: double.infinity, child: ElevatedButton(onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const LicenseScreen())), style: ElevatedButton.styleFrom(backgroundColor: Colors.white, padding: const EdgeInsets.symmetric(vertical: 15), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(99))), child: const Text('↗ Open an account — Verify Key', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)))),
+                    const SizedBox(height: 10),
+                    Row(children: [
+                      Expanded(child: OutlinedButton(onPressed: openWeb, style: OutlinedButton.styleFrom(side: const BorderSide(color: Colors.white24), padding: const EdgeInsets.symmetric(vertical: 13), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(99))), child: const Text('☁️ Open Web', style: TextStyle(color: Colors.white)))),
+                      const SizedBox(width: 8),
+                      Expanded(child: OutlinedButton(onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const LicenseScreen())), style: OutlinedButton.styleFrom(side: const BorderSide(color: Colors.white24), padding: const EdgeInsets.symmetric(vertical: 13), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(99))), child: const Text('Sign in →', style: TextStyle(color: Colors.white)))),
+                    ]),
+                    const SizedBox(height: 20),
+                    const Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                      _HeroStat(v: '24/7', l: 'Cloud Hosting'),
+                      _HeroStat(v: 'MT4 • MT5', l: 'Native'),
+                      _HeroStat(v: 'R100', l: 'Per Key'),
+                    ]),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 14),
+              _InfoCard(title: '☁️ Cloud Hosting — Like Gizmo Pro', desc: 'Connect your MT4/MT5 login, tap Start Hosting, close your phone. Your EA keeps trading on KAYVIEW Cloud.', btnText: 'Start Hosting →', onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const LicenseScreen()))),
+              _InfoCard(title: '📈 Sniper AI Scanner', desc: '43 structural setups, multi-timeframe, wick-entry + TP/SL. No guesswork, no noise.', btnText: '', onTap: () {}),
+              _PlanCard(),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _HeroStat extends StatelessWidget {
+  final String v; final String l;
+  const _HeroStat({required this.v, required this.l});
+  @override Widget build(BuildContext context) => Column(children: [Text(v, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)), Text(l, style: const TextStyle(color: Color(0xFFCBD5E1), fontSize: 12))]);
+}
+
+class _InfoCard extends StatelessWidget {
+  final String title, desc, btnText; final VoidCallback onTap;
+  const _InfoCard({required this.title, required this.desc, required this.btnText, required this.onTap});
+  @override Widget build(BuildContext context) => Container(margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6), padding: const EdgeInsets.all(18), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 16)]), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)), const SizedBox(height: 6), Text(desc, style: const TextStyle(color: Colors.grey, fontSize: 13, height: 1.5)), if (btnText.isNotEmpty) ...[const SizedBox(height: 12), ElevatedButton(onPressed: onTap, style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF2563EB), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(99))), child: Text(btnText, style: const TextStyle(color: Colors.white)))]]));
+}
+
+class _PlanCard extends StatelessWidget {
+  @override Widget build(BuildContext context) => Container(margin: const EdgeInsets.all(16), padding: const EdgeInsets.all(18), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20)), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+    const Text('PLANS', style: TextStyle(fontWeight: FontWeight.bold)),
+    const Text('Simple pricing. Serious tools.', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+    const SizedBox(height: 12),
+    _PlanRow(name: 'Student', price: 'R299', per: '/ month', features: '✓ 1 bot hosted 24/7\n✓ No PC, No VPS\n✓ Sniper AI scanner'),
+    _PlanRow(name: 'Mentor', price: 'R1 499', per: '/ month • MOST POPULAR', features: '✓ Unlimited bot builds\n✓ Issue student keys\n✓ Host students 24/7', highlight: true),
+    _PlanRow(name: 'Single Key', price: 'R100', per: '/ key • Pay once', features: '✓ 1 KAYVIEW Key • 30 days\n✓ Use in APK + MT5 EA\n✓ TymeBank • Fast approval'),
+    const SizedBox(height: 8),
+    SizedBox(width: double.infinity, child: OutlinedButton(onPressed: openWeb, child: const Text('Buy Key on Web →'))),
+  ]));
+}
+
+class _PlanRow extends StatelessWidget {
+  final String name, price, per, features; final bool highlight;
+  const _PlanRow({required this.name, required this.price, required this.per, required this.features, this.highlight = false});
+  @override Widget build(BuildContext context) => Container(margin: const EdgeInsets.only(bottom: 10), padding: const EdgeInsets.all(14), decoration: BoxDecoration(color: highlight ? const Color(0xFFEFF6FF) : const Color(0xFFF8FAFC), border: Border.all(color: highlight ? const Color(0xFFBFDBFE) : Colors.transparent), borderRadius: BorderRadius.circular(14)), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(name, style: const TextStyle(fontWeight: FontWeight.bold)), Text(price, style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w800)), Text(per, style: const TextStyle(color: Colors.grey, fontSize: 12)), const SizedBox(height: 6), Text(features, style: const TextStyle(fontSize: 13, height: 1.6, color: Color(0xFF475569)))]));
+}
+
+// ============ LICENSE / VERIFY ============
+class LicenseScreen extends StatefulWidget {
+  const LicenseScreen({super.key});
+  @override State<LicenseScreen> createState() => _LicenseScreenState();
+}
+
+class _LicenseScreenState extends State<LicenseScreen> {
   final emailCtrl = TextEditingController();
   final keyCtrl = TextEditingController();
-  bool checking = false;
-  bool activating = false;
-  bool agreed = false;
-  String? email;
-  String? robotKey;
+  String status = '';
+  bool loading = false;
 
-  @override
-  void initState() {
-    super.initState();
-    _loadSaved();
-    Future.delayed(const Duration(milliseconds: 2500), () {
-      if (mounted && step == OnboardStep.splash) setState(() => step = OnboardStep.start);
-    });
-  }
-
-  Future<void> _loadSaved() async {
-    final prefs = await SharedPreferences.getInstance();
-    final done = prefs.getBool('kayview_onboarded') ?? false;
-    if (done && mounted) setState(() => step = OnboardStep.home);
-  }
-
-  Future<void> _finishOnboarding() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('kayview_onboarded', true);
-    await prefs.setString('kayview_email', email ?? '');
-    await prefs.setString('kayview_robot_key', robotKey ?? '');
-    setState(() => step = OnboardStep.home);
-  }
-
-  // ===== AMBIENT HOST - VERIFY KEY =====
-  Future<bool> _verifyKeyWithAmbient() async {
+  Future<void> verifyKey() async {
+    final email = emailCtrl.text.trim();
+    final key = keyCtrl.text.trim().toUpperCase();
+    if (email.isEmpty || key.isEmpty) { setState(() => status = 'Enter email + license key'); return; }
+    setState(() { loading = true; status = 'Verifying with KAYVIEW Cloud...'; });
     try {
-      final res = await http.post(
-        Uri.parse('$AMBIENT_BASE/api/verify-key'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'email': email, 'key': robotKey}),
-      ).timeout(const Duration(seconds: 15));
-
-      if (res.statusCode == 200) {
-        final data = jsonDecode(res.body);
-        // Accepts: {valid:true} OR {success:true} OR {status:"valid"}
-        if (data is Map) {
-          if (data['valid'] == true) return true;
-          if (data['success'] == true) return true;
-          if (data['status'] == 'valid') return true;
-          if (data['activated'] == true) return true;
-        }
-        return false;
+      final res = await http.post(Uri.parse('$API/api/verify-key'), headers: {'Content-Type': 'application/json'}, body: jsonEncode({'email': email, 'key': key}));
+      final data = jsonDecode(res.body);
+      if (data['valid'] == true || data['success'] == true) {
+        if (!mounted) return;
+        Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => DashboardScreen(email: email, key: key)));
+      } else {
+        setState(() => status = '❌ ${data['reason'] ?? 'Key not found — Check Key Shop'}');
       }
-      return false;
-    } catch (e) {
-      return false;
-    }
+    } catch (e) { setState(() => status = '❌ Network error: $e'); }
+    finally { if (mounted) setState(() => loading = false); }
   }
 
-  Widget _kvLogo({double size = 72}) {
-    return Container(
-      width: size, height: size,
-      decoration: BoxDecoration(
-        color: const Color(0xFF111827),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: Colors.white24, width: 1),
-      ),
-      child: const Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Text('KV', style: TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.w900, letterSpacing: 2)),
-          SizedBox(height: 2),
-          Text('KAYVIEW', style: TextStyle(color: Colors.white54, fontSize: 8, letterSpacing: 3)),
-          Text('CHARGER', style: TextStyle(color: Colors.white54, fontSize: 8, letterSpacing: 3)),
-        ],
-      ),
-    );
-  }
-
-  Widget _scaffold(Widget child) {
+  @override Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0A0A1E),
-      body: SafeArea(child: Padding(padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16), child: child)),
+      backgroundColor: const Color(0xFFF1F5F9),
+      appBar: AppBar(title: const Text('KAYVIEW — Login'), backgroundColor: Colors.white, surfaceTintColor: Colors.white),
+      body: SingleChildScrollView(padding: const EdgeInsets.all(20), child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Container(padding: const EdgeInsets.all(20), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(24), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 20)]), child: Column(children: [
+          Container(width: 52, height: 52, decoration: const BoxDecoration(color: Color(0xFF0F172A), shape: BoxShape.circle), child: const Center(child: Text('K', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 22)))),
+          const SizedBox(height: 10),
+          const Text('Welcome back', style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800, fontFamily: 'Georgia')),
+          const Text('Login to KAYVIEW', style: TextStyle(color: Colors.grey)),
+          const SizedBox(height: 18),
+          const Align(alignment: Alignment.centerLeft, child: Text('Email (same as Web login)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13))),
+          const SizedBox(height: 6),
+          TextField(controller: emailCtrl, keyboardType: TextInputType.emailAddress, decoration: InputDecoration(hintText: 'kayview051@gmail.com', filled: true, fillColor: const Color(0xFFF8FAFC), border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none))),
+          const SizedBox(height: 14),
+          const Align(alignment: Alignment.centerLeft, child: Text('License Key (from Web > Keys)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13))),
+          const SizedBox(height: 6),
+          TextField(controller: keyCtrl, textCapitalization: TextCapitalization.characters, decoration: InputDecoration(hintText: 'KV-XXXX-XXXX', filled: true, fillColor: const Color(0xFFF8FAFC), border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none))),
+          const SizedBox(height: 18),
+          SizedBox(width: double.infinity, child: ElevatedButton(onPressed: loading ? null : verifyKey, style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF2563EB), padding: const EdgeInsets.symmetric(vertical: 15), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(99))), child: loading ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) : const Text('Verify License Key', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)))),
+          const SizedBox(height: 10),
+          SizedBox(width: double.infinity, child: OutlinedButton(onPressed: openWeb, style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 14), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(99))), child: const Text('Buy Key on Web — Open prime-keys.html', style: TextStyle(fontWeight: FontWeight.bold)))),
+          const SizedBox(height: 8),
+          const Text(WEB_URL, style: TextStyle(fontSize: 11, color: Colors.grey), textAlign: TextAlign.center),
+          if (status.isNotEmpty) ...[const SizedBox(height: 12), Text(status, textAlign: TextAlign.center, style: TextStyle(color: status.contains('✅') ? Colors.green : Colors.red, fontWeight: FontWeight.bold))],
+        ])),
+        const SizedBox(height: 14),
+        Container(padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20)), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          const Text('No key yet?', style: TextStyle(fontWeight: FontWeight.bold)),
+          const Text('1. Tap Buy Key on Web\n2. Login > Key Shop > Pay R100 to TymeBank 51107457045\n3. Send proof on WhatsApp +27 73 081 9637\n4. Wait for approval > Generate Key > Paste here', style: TextStyle(fontSize: 13, height: 1.6, color: Colors.grey)),
+          const SizedBox(height: 10),
+          SizedBox(width: double.infinity, child: ElevatedButton.icon(onPressed: openWhatsApp, icon: const Text('🟢'), label: const Text('Send Proof on WhatsApp', style: TextStyle(color: Colors.white)), style: ElevatedButton.styleFrom(backgroundColor: Colors.green, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(99))))),
+        ])),
+      ])),
     );
-  }
-
-  Widget _primaryBtn(String label, VoidCallback? onTap, {bool loading = false}) {
-    return SizedBox(
-      width: double.infinity, height: 52,
-      child: ElevatedButton(
-        onPressed: onTap,
-        style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF6D28D9), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(26))),
-        child: loading
-            ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-            : Text(label, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, letterSpacing: 1)),
-      ),
-    );
-  }
-
-  Widget _buildSplash() {
-    return _scaffold(Column(
-      children: [
-        const Spacer(),
-        _kvLogo(size: 110),
-        const SizedBox(height: 28),
-        const Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text('WELCOME TO', style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w500)),
-            SizedBox(width: 10),
-            Text('KAYVIEW', style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
-          ],
-        ),
-        const SizedBox(height: 6),
-        const Text('CHARGER  •  HOW TO GUIDE', style: TextStyle(color: Colors.white70, fontSize: 14, letterSpacing: 2)),
-        const SizedBox(height: 8),
-        const Text('POWERED BY AMBIENT', style: TextStyle(color: Colors.white38, fontSize: 11, letterSpacing: 3)),
-        const Spacer(),
-        const Text('AMBIENT HOST EA - KV - READY', style: TextStyle(color: Colors.white30, fontSize: 10, letterSpacing: 2)),
-      ],
-    ));
-  }
-
-  Widget _buildStart() {
-    return _scaffold(Column(
-      children: [
-        const Spacer(),
-        _kvLogo(size: 90),
-        const SizedBox(height: 24),
-        const Text('KAYVIEW CHARGER', style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold, letterSpacing: 1)),
-        const SizedBox(height: 6),
-        const Text('POWERED BY AMBIENT', style: TextStyle(color: Colors.white54, fontSize: 12, letterSpacing: 2)),
-        const Spacer(),
-        _primaryBtn('START', () => setState(() => step = OnboardStep.login)),
-        const SizedBox(height: 16),
-      ],
-    ));
-  }
-
-  Widget _buildLogin() {
-    return _scaffold(Column(
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        IconButton(onPressed: () => setState(() => step = OnboardStep.start), icon: const Icon(Icons.arrow_back, color: Colors.white)),
-        const Spacer(),
-        _kvLogo(size: 72),
-        const SizedBox(height: 20),
-        const Text('LOGIN', style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold, letterSpacing: 2)),
-        const SizedBox(height: 20),
-        TextField(
-          controller: emailCtrl,
-          keyboardType: TextInputType.emailAddress,
-          style: const TextStyle(color: Colors.white),
-          decoration: InputDecoration(
-            hintText: 'EMAIL', hintStyle: const TextStyle(color: Colors.white38, letterSpacing: 1),
-            filled: true, fillColor: const Color(0xFF1F2937),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(26), borderSide: BorderSide.none),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-          ),
-        ),
-        const SizedBox(height: 16),
-        _primaryBtn(checking ? 'CHECKING...' : 'PROCEED', checking ? null : () {
-          if (emailCtrl.text.trim().isEmpty || !emailCtrl.text.contains('@')) {
-            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Enter a valid email')));
-            return;
-          }
-          setState(() => checking = true);
-          email = emailCtrl.text.trim();
-          Future.delayed(const Duration(milliseconds: 1400), () {
-            if (!mounted) return;
-            setState(() { checking = false; step = OnboardStep.pay; });
-          });
-        }, loading: checking),
-        const Spacer(),
-      ],
-    ));
-  }
-
-  Widget _buildPay() {
-    return _scaffold(SingleChildScrollView(child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(children: [
-          IconButton(onPressed: () => setState(() => step = OnboardStep.login), icon: const Icon(Icons.arrow_back, color: Colors.white)),
-          const Text('Pay for App', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
-          const Spacer(),
-          IconButton(onPressed: () => setState(() => step = OnboardStep.home), icon: const Icon(Icons.close, color: Colors.white54)),
-        ]),
-        const SizedBox(height: 12),
-        Container(
-          width: double.infinity, padding: const EdgeInsets.all(18),
-          decoration: BoxDecoration(color: const Color(0xFF1F2937), borderRadius: BorderRadius.circular(18)),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            const Text('KAYVIEW CHARGER', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 6),
-            const Text('Get instant access to professional trading tool and expert advisor. Boost your trading performance.', style: TextStyle(color: Colors.white70, fontSize: 13, height: 1.5)),
-            const SizedBox(height: 16),
-            const Text('R1000', style: TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.w900)),
-            const Text('One-time purchase • ZAR', style: TextStyle(color: Colors.white54, fontSize: 12)),
-            const SizedBox(height: 12),
-            const Text('✓ Professional Trading Tool\n✓ Expert Advisor (EA)\n✓ Instant Access\n✓ 24/7 Support', style: TextStyle(color: Colors.white70, fontSize: 13, height: 1.6)),
-            const SizedBox(height: 16),
-            Row(children: [
-              Checkbox(value: agreed, activeColor: const Color(0xFF6D28D9), onChanged: (v) => setState(() => agreed = v ?? false)),
-              const Expanded(child: Text('I agree to Privacy Policy, Terms of Service and Refund Policy', style: TextStyle(color: Colors.white70, fontSize: 12))),
-            ]),
-          ]),
-        ),
-        const SizedBox(height: 18),
-        SizedBox(
-          width: double.infinity, height: 52,
-          child: ElevatedButton(
-            onPressed: !agreed ? null : () => setState(() => step = OnboardStep.tradeSolutions),
-            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFFACC15), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(26))),
-            child: const Text('Buy Now', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
-          ),
-        ),
-        const SizedBox(height: 12),
-        const Center(child: Text('Copyright © 2026 All Rights Reserved. KAYVIEW CHARGER', style: TextStyle(color: Colors.white30, fontSize: 10))),
-      ],
-    )));
-  }
-
-  Widget _payMethod(String title, String sub, IconData icon, VoidCallback onTap) {
-    return InkWell(
-      onTap: onTap,
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 10),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14)),
-        child: Row(children: [
-          Icon(icon, color: Colors.black87),
-          const SizedBox(width: 12),
-          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(title, style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 14)),
-            Text(sub, style: const TextStyle(color: Colors.black54, fontSize: 11)),
-          ])),
-          const Icon(Icons.chevron_right, color: Colors.black38),
-        ]),
-      ),
-    );
-  }
-
-  Widget _buildTradeSolutions() {
-    return _scaffold(SingleChildScrollView(child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(children: [
-          IconButton(onPressed: () => setState(() => step = OnboardStep.pay), icon: const Icon(Icons.arrow_back, color: Colors.white)),
-          const Text('Trade Solutions', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
-        ]),
-        const SizedBox(height: 16),
-        Container(
-          width: double.infinity, padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14)),
-          child: const Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-            Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('Total', style: TextStyle(color: Colors.black54, fontSize: 12)),
-              Text('R 1000.00', style: TextStyle(color: Colors.black, fontSize: 20, fontWeight: FontWeight.bold)),
-            ]),
-            Text('Purchase details ▾', style: TextStyle(color: Colors.black54, fontSize: 12)),
-          ]),
-        ),
-        const SizedBox(height: 16),
-        const Text('How will you be paying today?', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-        const SizedBox(height: 12),
-        _payMethod('Pay with Pay', 'VISA • Credit & Cheque card', Icons.credit_card, () => _paySuccess('Card')),
-        _payMethod('Instant EFT', 'Instant EFT • Bank transfer', Icons.account_balance, () => _paySuccess('Instant EFT')),
-        _payMethod('Capitec Pay', 'Capitec Pay', Icons.phone_android, () => _paySuccess('Capitec Pay')),
-        _payMethod('SnapScan', 'SnapScan • Scan to pay', Icons.qr_code_scanner, () => _paySuccess('SnapScan')),
-        const SizedBox(height: 8),
-        const Center(child: Text('Secured via Trade Solutions • ZAR, NOT \$', style: TextStyle(color: Colors.white38, fontSize: 11))),
-      ],
-    )));
-  }
-
-  void _paySuccess(String method) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Payment with $method — R1000.00 successful')));
-    Future.delayed(const Duration(milliseconds: 800), () {
-      if (mounted) setState(() => step = OnboardStep.robotKey);
-    });
-  }
-
-  Widget _buildRobotKey() {
-    return _scaffold(Column(
-      children: [
-        IconButton(onPressed: () => setState(() => step = OnboardStep.tradeSolutions), icon: const Icon(Icons.arrow_back, color: Colors.white)),
-        const Spacer(),
-        _kvLogo(size: 72),
-        const SizedBox(height: 20),
-        const Text('ENTER ROBOT KEY', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold, letterSpacing: 1)),
-        const SizedBox(height: 6),
-        const Text('Connected to Ambient Host', style: TextStyle(color: Colors.white38, fontSize: 11)),
-        const SizedBox(height: 20),
-        TextField(
-          controller: keyCtrl,
-          style: const TextStyle(color: Colors.white, letterSpacing: 1),
-          decoration: InputDecoration(
-            hintText: 'ROBOT KEY', hintStyle: const TextStyle(color: Colors.white38),
-            filled: true, fillColor: const Color(0xFF1F2937),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(26), borderSide: BorderSide.none),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-          ),
-        ),
-        const SizedBox(height: 16),
-        _primaryBtn(activating ? 'ACTIVATING... CHECKING AMBIENT HOST' : 'ACTIVATE', activating ? null : () async {
-          if (keyCtrl.text.trim().length < 4) {
-            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Enter your robot key')));
-            return;
-          }
-          setState(() => activating = true);
-          robotKey = keyCtrl.text.trim();
-          final ok = await _verifyKeyWithAmbient();
-          if (!mounted) return;
-          setState(() => activating = false);
-          if (ok) {
-            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Key verified by Ambient Host! Welcome.'), backgroundColor: Colors.green));
-            _finishOnboarding();
-          } else {
-            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Invalid / Expired Key. Check Ambient Host - prime-keys.html'), backgroundColor: Colors.red));
-          }
-        }, loading: activating),
-        const SizedBox(height: 12),
-        const Text('Your key is checked live against https://kayview-api.onrender.com', style: TextStyle(color: Colors.white38, fontSize: 11), textAlign: TextAlign.center),
-        const Spacer(),
-      ],
-    ));
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    switch (step) {
-      case OnboardStep.splash: return _buildSplash();
-      case OnboardStep.start: return _buildStart();
-      case OnboardStep.login: return _buildLogin();
-      case OnboardStep.pay: return _buildPay();
-      case OnboardStep.tradeSolutions: return _buildTradeSolutions();
-      case OnboardStep.robotKey: return _buildRobotKey();
-      case OnboardStep.home: return const KayviewHome();
-    }
   }
 }
 
-class KayviewHome extends StatefulWidget {
-  const KayviewHome({super.key});
-  @override
-  State<KayviewHome> createState() => _KayviewHomeState();
+// ============ DASHBOARD ============
+class DashboardScreen extends StatefulWidget {
+  final String email; final String key;
+  const DashboardScreen({super.key, required this.email, required this.key});
+  @override State<DashboardScreen> createState() => _DashboardScreenState();
 }
 
-class _KayviewHomeState extends State<KayviewHome> {
-  late final WebViewController _controller;
-  bool _loading = true;
-  bool _overlayOn = false;
+class _DashboardScreenState extends State<DashboardScreen> {
+  int idx = 0;
+  String cloudStatus = 'Checking...';
+  int hostsOnline = 0;
 
-  @override
-  void initState() {
-    super.initState();
-    _controller = WebViewController()
-      ..setJavaScriptMode(JavaScriptMode.unrestricted)
-      ..setBackgroundColor(const Color(0xFF020617))
-      ..setUserAgent('Mozilla/5.0 (Linux; Android 13; Median) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36 KAYVIEW-CHARGER/1.0 AMBIENT-HOST-EA')
-      ..setNavigationDelegate(
-        NavigationDelegate(
-          onPageFinished: (_) {
-            setState(() => _loading = false);
-            _controller.runJavaScript('''
-              (function(){
-                if(window.__kayviewHooked) return; window.__kayviewHooked = true;
-                try{ localStorage.setItem('kayview_onboarded','1'); }catch(e){}
-                document.addEventListener('click', function(e){
-                  var t = e.target && e.target.closest ? e.target.closest('button') : null;
-                  if(!t) return;
-                  var txt = (t.innerText||'').toUpperCase();
-                  if(txt.includes('START')){ KayviewBridge.postMessage('START'); }
-                  if(txt.includes('STOP') || txt.includes('REMOVE')){ KayviewBridge.postMessage('STOP'); }
-                });
-              })();
-            ''');
-          },
-          onNavigationRequest: (req) async {
-            final url = req.url;
-            if (url.startsWith('mt5://')) {
-              final uri = Uri.parse(url);
-              if (await canLaunchUrl(uri)) await launchUrl(uri, mode: LaunchMode.externalApplication);
-              return NavigationDecision.prevent;
-            }
-            return NavigationDecision.navigate;
-          },
-        ),
-      )
-      ..addJavaScriptChannel(
-        'KayviewBridge',
-        onMessageReceived: (msg) async {
-          if (msg.message == 'START') await _onStartPressed();
-          else if (msg.message == 'STOP') await _onStopPressed();
-        },
-      )
-      ..loadFlutterAsset('assets/index.html');
-
-    FlutterOverlayWindow.overlayListener.listen((data) {
-      if (data == 'OVERLAY_STOPPED') {
-        _controller.runJavaScript("if(typeof armed!=='undefined' && armed && window.toggleBot){ toggleBot(); }");
-      }
-    });
+  @override void initState() { super.initState(); checkCloud(); }
+  Future<void> checkCloud() async {
+    try {
+      final r = await http.get(Uri.parse('$API/api/meta'));
+      final d = jsonDecode(r.body);
+      setState(() { cloudStatus = 'ONLINE • ${d['keys'] ?? 6} keys'; hostsOnline = (d['hostsOnlineReal'] ?? 0) as int; });
+    } catch (_) { setState(() => cloudStatus = 'Offline — Check internet'); }
   }
 
-  Future<void> _onStartPressed() async {
-    bool granted = await FlutterOverlayWindow.isPermissionGranted();
-    if (!granted) {
-      final ok = await FlutterOverlayWindow.requestPermission();
-      if (ok != true) {
-        if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Allow "Display over other apps" to keep KV floating over MT5')));
-        return;
-      }
-    }
-    if (!_overlayOn) {
-      await FlutterOverlayWindow.showOverlay(
-        enableDrag: true,
-        overlayTitle: 'KAYVIEW CHARGER',
-        overlayContent: 'KV floating - Tap PLAY/STOP',
-        flag: OverlayFlag.defaultFlag,
-        visibility: NotificationVisibility.visibilityPublic,
-        positionGravity: PositionGravity.auto,
-        height: 72, width: 72,
-        startPosition: OverlayPosition(20, 120),
-      );
-      setState(() => _overlayOn = true);
-    }
-    await FlutterOverlayWindow.shareData('START');
-    HapticFeedback.mediumImpact();
-    if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('KV floating over apps - Pink = RUNNING. Drag it. Tap = PLAY/STOP. Stays over MT5.'), backgroundColor: Color(0xFFFF2E88)));
-  }
-
-  Future<void> _onStopPressed() async {
-    await FlutterOverlayWindow.shareData('STOP');
-  }
-
-  Future<void> _closeOverlay() async {
-    await FlutterOverlayWindow.closeOverlay();
-    setState(() => _overlayOn = false);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFF020617),
-      body: SafeArea(
-        child: Stack(children: [
-          WebViewWidget(controller: _controller),
-          if (_loading) const Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
-            CircularProgressIndicator(color: Color(0xFF0A2A6E)),
-            SizedBox(height: 12),
-            Text('KAYVIEW CHARGER', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, letterSpacing: 2)),
-            SizedBox(height: 4),
-            Text('POWERED BY AMBIENT', style: TextStyle(color: Colors.white54, fontSize: 11, letterSpacing: 2)),
-          ])),
+  @override Widget build(BuildContext context) {
+    final pages = [
+      // OVERVIEW
+      SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text('Welcome back,', style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w800).copyWith(height: 1.1)),
+        Text(widget.email, style: const TextStyle(color: Colors.grey)),
+        const SizedBox(height: 14),
+        Row(children: [
+          Expanded(child: _StatCard(icon: '🔑', num: '6', label: 'STOCK KEYS')),
+          const SizedBox(width: 10),
+          Expanded(child: _StatCard(icon: '📈', num: '1', label: 'ACTIVE')),
         ]),
-      ),
-      floatingActionButton: Column(mainAxisSize: MainAxisSize.min, children: [
-        if (_overlayOn) FloatingActionButton.small(heroTag: 'closeOverlay', backgroundColor: Colors.grey[800], onPressed: _closeOverlay, child: const Icon(Icons.close, color: Colors.white)),
-        const SizedBox(height: 8),
-        FloatingActionButton(heroTag: 'reload', backgroundColor: const Color(0xFF0A2A6E), onPressed: () => _controller.reload(), child: const Icon(Icons.refresh, color: Colors.white)),
+        const SizedBox(height: 10),
+        Row(children: [
+          Expanded(child: _StatCard(icon: '👥', num: '0', label: 'STUDENTS')),
+          const SizedBox(width: 10),
+          Expanded(child: _StatCard(icon: '🤖', num: '1', label: 'BOTS')),
+        ]),
+        const SizedBox(height: 12),
+        Container(width: double.infinity, padding: const EdgeInsets.all(18), decoration: BoxDecoration(gradient: const LinearGradient(colors: [Color(0xFF0F172A), Color(0xFF2563EB)]), borderRadius: BorderRadius.circular(20)), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [const Text('LIVE HOSTING SESSIONS • 24/7', style: TextStyle(color: Color(0xFFBFDBFE), fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 1)), Text('$hostsOnline', style: const TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.w800)), Text('Uptime: 99.9% • $cloudStatus', style: const TextStyle(color: Colors.white70, fontSize: 12)), const SizedBox(height: 10), ElevatedButton(onPressed: () => setState(() => idx = 2), style: ElevatedButton.styleFrom(backgroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(99))), child: const Text('▶ Start Hosting', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)))])),
+        const SizedBox(height: 12),
+        Container(padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20)), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [const Text('☁️ KAYVIEW Cloud — ONLINE', style: TextStyle(fontWeight: FontWeight.bold)), const Text('Your EAs keep running even when your phone is off.', style: TextStyle(color: Colors.grey, fontSize: 13)), const SizedBox(height: 10), SizedBox(width: double.infinity, child: OutlinedButton(onPressed: checkCloud, child: const Text('↻ Refresh Status')))])),
+      ])),
+      // KEYS
+      SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(children: [
+        Container(padding: const EdgeInsets.all(18), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20)), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [const Text('🔑 Your Key', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)), const SizedBox(height: 6), Container(padding: const EdgeInsets.all(14), decoration: BoxDecoration(color: const Color(0xFFF8FAFC), border: Border.all(color: const Color(0xFFE2E8F0)), borderRadius: BorderRadius.circular(12)), child: Row(children: [Expanded(child: Text(widget.key, style: const TextStyle(fontWeight: FontWeight.w800, color: Color(0xFF2563EB), fontSize: 16))), const Text('● ACTIVE', style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold, fontSize: 12))])), const SizedBox(height: 6), Text(widget.email, style: const TextStyle(color: Colors.grey)), const SizedBox(height: 12), SizedBox(width: double.infinity, child: ElevatedButton(onPressed: openWeb, child: const Text('Manage Keys on Web →')))])),
+        const SizedBox(height: 12),
+        Container(padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20)), child: const Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('How to use', style: TextStyle(fontWeight: FontWeight.bold)), Text('Same key works in MT5 EA Bridge. Paste this key in EA settings + your MT4/MT5 login to start hosting.', style: TextStyle(color: Colors.grey, fontSize: 13, height: 1.5))])),
+      ])),
+      // HOSTING
+      SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        const Text('☁️ Cloud Hosting', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800)),
+        const Text('Run your EA 24/7 — No PC, No VPS.', style: TextStyle(color: Colors.grey)),
+        const SizedBox(height: 12),
+        Container(padding: const EdgeInsets.all(14), decoration: BoxDecoration(color: const Color(0xFFDCFCE7), borderRadius: BorderRadius.circular(14)), child: Row(children: [const Text('● ', style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold)), Expanded(child: Text('KAYVIEW Cloud — ONLINE • $cloudStatus', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)))])),
+        const SizedBox(height: 12),
+        Container(padding: const EdgeInsets.all(18), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20)), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [const Text('Start New Hosting Session', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)), const SizedBox(height: 12), _Field(label: 'Your KAYVIEW Key', initial: widget.key), _Field(label: 'MT4 / MT5 Login', hint: 'e.g. 12345678'), _Field(label: 'MT Server', hint: 'e.g. Deriv-Server'), _Field(label: 'EA Name', hint: 'e.g. KAYVIEW Sniper EA'), const SizedBox(height: 8), SizedBox(width: double.infinity, child: ElevatedButton(onPressed: () { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Hosting STARTED ✓ Your EA is ONLINE 24/7 on KAYVIEW Cloud'))); }, style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF2563EB), padding: const EdgeInsets.symmetric(vertical: 14), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(99))), child: const Text('▶ Start Hosting 24/7', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold))))])),
+      ])),
+      // SHOP
+      SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(children: [
+        Container(padding: const EdgeInsets.all(18), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20)), child: Column(children: [Container(width: 70, height: 70, decoration: const BoxDecoration(color: Color(0xFF0F172A), shape: BoxShape.circle), child: const Center(child: Text('K', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 28)))), const SizedBox(height: 10), const Text('PER KEY', style: TextStyle(color: Colors.grey, fontSize: 12)), const Text('R100', style: TextStyle(color: Color(0xFF2563EB), fontSize: 36, fontWeight: FontWeight.w800)), const Text('Pay via TymeBank • Immediate Payment', style: TextStyle(color: Colors.grey)), const SizedBox(height: 12), Container(padding: const EdgeInsets.all(14), decoration: BoxDecoration(color: const Color(0xFF0F172A), borderRadius: BorderRadius.circular(16)), child: const Column(children: [Text('KAYVIEW BANKING DETAILS', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)), SizedBox(height: 6), Text('🏦 TymeBank\n💳 51107457045\n📝 Ref: MT-9994-KEYS-1', style: TextStyle(color: Colors.white70, height: 1.6), textAlign: TextAlign.center)])), const SizedBox(height: 12), SizedBox(width: double.infinity, child: ElevatedButton(onPressed: openWeb, child: const Text('Buy in Key Shop on Web →'))), const SizedBox(height: 8), SizedBox(width: double.infinity, child: ElevatedButton.icon(onPressed: openWhatsApp, icon: const Text('🟢'), label: const Text('Send Proof on WhatsApp', style: TextStyle(color: Colors.white)), style: ElevatedButton.styleFrom(backgroundColor: Colors.green, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(99)))))])),
+      ])),
+    ];
+
+    return Scaffold(
+      backgroundColor: const Color(0xFFF1F5F9),
+      appBar: AppBar(title: const Text('KAYVIEW • Mentor Console'), backgroundColor: Colors.white, surfaceTintColor: Colors.white, actions: [IconButton(onPressed: openWeb, icon: const Icon(Icons.open_in_browser))]),
+      body: pages[idx],
+      bottomNavigationBar: NavigationBar(selectedIndex: idx, onDestinationSelected: (i) => setState(() => idx = i), destinations: const [
+        NavigationDestination(icon: Icon(Icons.home), label: 'Overview'),
+        NavigationDestination(icon: Icon(Icons.key), label: 'Keys'),
+        NavigationDestination(icon: Icon(Icons.cloud), label: 'Hosting'),
+        NavigationDestination(icon: Icon(Icons.shopping_cart), label: 'Key Shop'),
       ]),
     );
   }
+}
+
+class _StatCard extends StatelessWidget {
+  final String icon, num, label;
+  const _StatCard({required this.icon, required this.num, required this.label});
+  @override Widget build(BuildContext context) => Container(padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20)), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(icon, style: const TextStyle(fontSize: 20)), Text(num, style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w800)), Text(label, style: const TextStyle(fontSize: 10, color: Colors.grey, fontWeight: FontWeight.bold, letterSpacing: 1))]));
+}
+
+class _Field extends StatelessWidget {
+  final String label; final String? hint; final String? initial;
+  const _Field({required this.label, this.hint, this.initial});
+  @override Widget build(BuildContext context) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(label, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)), const SizedBox(height: 6), TextField(controller: initial != null ? TextEditingController(text: initial) : null, decoration: InputDecoration(hintText: hint ?? '', filled: true, fillColor: const Color(0xFFF8FAFC), border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none))), const SizedBox(height: 12)]);
 }
