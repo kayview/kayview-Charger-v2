@@ -148,7 +148,7 @@ class _LicenseScreenState extends State<LicenseScreen> {
       final data = jsonDecode(res.body);
       if (data['valid'] == true || data['success'] == true) {
         if (!mounted) return;
-        Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => DashboardScreen(email: email, key: key)));
+        Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => DashboardScreen(email: email, licenseKey: key)));
       } else {
         setState(() => status = '❌ ${data['reason'] ?? 'Key not found — Check Key Shop'}');
       }
@@ -196,8 +196,8 @@ class _LicenseScreenState extends State<LicenseScreen> {
 
 // ============ DASHBOARD ============
 class DashboardScreen extends StatefulWidget {
-  final String email; final String key;
-  const DashboardScreen({super.key, required this.email, required this.key});
+  final String email; final String licenseKey;
+  const DashboardScreen({super.key, required this.email, required this.licenseKey});
   @override State<DashboardScreen> createState() => _DashboardScreenState();
 }
 
@@ -240,7 +240,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       ])),
       // KEYS
       SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(children: [
-        Container(padding: const EdgeInsets.all(18), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20)), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [const Text('🔑 Your Key', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)), const SizedBox(height: 6), Container(padding: const EdgeInsets.all(14), decoration: BoxDecoration(color: const Color(0xFFF8FAFC), border: Border.all(color: const Color(0xFFE2E8F0)), borderRadius: BorderRadius.circular(12)), child: Row(children: [Expanded(child: Text(widget.key, style: const TextStyle(fontWeight: FontWeight.w800, color: Color(0xFF2563EB), fontSize: 16))), const Text('● ACTIVE', style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold, fontSize: 12))])), const SizedBox(height: 6), Text(widget.email, style: const TextStyle(color: Colors.grey)), const SizedBox(height: 12), SizedBox(width: double.infinity, child: ElevatedButton(onPressed: openWeb, child: const Text('Manage Keys on Web →')))])),
+        Container(padding: const EdgeInsets.all(18), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20)), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [const Text('🔑 Your Key', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)), const SizedBox(height: 6), Container(padding: const EdgeInsets.all(14), decoration: BoxDecoration(color: const Color(0xFFF8FAFC), border: Border.all(color: const Color(0xFFE2E8F0)), borderRadius: BorderRadius.circular(12)), child: Row(children: [Expanded(child: Text(widget.licenseKey, style: const TextStyle(fontWeight: FontWeight.w800, color: Color(0xFF2563EB), fontSize: 16))), const Text('● ACTIVE', style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold, fontSize: 12))])), const SizedBox(height: 6), Text(widget.email, style: const TextStyle(color: Colors.grey)), const SizedBox(height: 12), SizedBox(width: double.infinity, child: ElevatedButton(onPressed: openWeb, child: const Text('Manage Keys on Web →')))])),
         const SizedBox(height: 12),
         Container(padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20)), child: const Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('How to use', style: TextStyle(fontWeight: FontWeight.bold)), Text('Same key works in MT5 EA Bridge. Paste this key in EA settings + your MT4/MT5 login to start hosting.', style: TextStyle(color: Colors.grey, fontSize: 13, height: 1.5))])),
       ])),
@@ -251,7 +251,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         const SizedBox(height: 12),
         Container(padding: const EdgeInsets.all(14), decoration: BoxDecoration(color: const Color(0xFFDCFCE7), borderRadius: BorderRadius.circular(14)), child: Row(children: [const Text('● ', style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold)), Expanded(child: Text('KAYVIEW Cloud — ONLINE • $cloudStatus', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)))])),
         const SizedBox(height: 12),
-        Container(padding: const EdgeInsets.all(18), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20)), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [const Text('Start New Hosting Session', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)), const SizedBox(height: 12), _Field(label: 'Your KAYVIEW Key', initial: widget.key), _Field(label: 'MT4 / MT5 Login', hint: 'e.g. 12345678'), _Field(label: 'MT Server', hint: 'e.g. Deriv-Server'), _Field(label: 'EA Name', hint: 'e.g. KAYVIEW Sniper EA'), const SizedBox(height: 8), SizedBox(width: double.infinity, child: ElevatedButton(onPressed: () { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Hosting STARTED ✓ Your EA is ONLINE 24/7 on KAYVIEW Cloud'))); }, style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF2563EB), padding: const EdgeInsets.symmetric(vertical: 14), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(99))), child: const Text('▶ Start Hosting 24/7', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold))))])),
+        Container(padding: const EdgeInsets.all(18), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20)), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [const Text('Start New Hosting Session', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)), const SizedBox(height: 12), _Field(label: 'Your KAYVIEW Key', initial: widget.licenseKey), _Field(label: 'MT4 / MT5 Login', hint: 'e.g. 12345678'), _Field(label: 'MT Server', hint: 'e.g. Deriv-Server'), _Field(label: 'EA Name', hint: 'e.g. KAYVIEW Sniper EA'), const SizedBox(height: 8), SizedBox(width: double.infinity, child: ElevatedButton(onPressed: () { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Hosting STARTED ✓ Your EA is ONLINE 24/7 on KAYVIEW Cloud'))); }, style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF2563EB), padding: const EdgeInsets.symmetric(vertical: 14), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(99))), child: const Text('▶ Start Hosting 24/7', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold))))])),
       ])),
       // SHOP
       SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(children: [
