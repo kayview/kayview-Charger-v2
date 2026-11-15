@@ -24,12 +24,26 @@ class KayviewWeb extends StatefulWidget {
 class _KayviewWebState extends State<KayviewWeb> {
   late final WebViewController controller;
   bool loading = true;
+  bool hasError = false;
 
-  Future<void> openOutside(String url) async {
-    final uri = Uri.parse(url);
+  final String url = 'https://kayview-api.onrender.com/prime-keys.html';
+
+  Future<void> openOutside(String link) async {
+    final uri = Uri.parse(link);
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri, mode: LaunchMode.externalApplication);
     }
+  }
+
+  void loadFresh() {
+    setState(() {
+      loading = true;
+      hasError = false;
+    });
+    controller.loadRequest(
+      Uri.parse('$url?v=${DateTime.now().millisecondsSinceEpoch}'),
+      headers: {'Cache-Control': 'no-cache'},
+    );
   }
 
   @override
@@ -40,27 +54,33 @@ class _KayviewWebState extends State<KayviewWeb> {
       ..setBackgroundColor(const Color(0xFF0F172A))
       ..setNavigationDelegate(
         NavigationDelegate(
+          onPageStarted: (_) => setState(() {
+            loading = true;
+            hasError = false;
+          }),
           onPageFinished: (_) => setState(() => loading = false),
+          onWebResourceError: (_) {
+            setState(() {
+              loading = false;
+              hasError = true;
+            });
+          },
           onNavigationRequest: (request) {
-            final url = request.url;
-
-            // WhatsApp, phone, email, Telegram - open OUTSIDE WebView
-            if (url.contains('wa.me') ||
-                url.contains('whatsapp') ||
-                url.contains('api.whatsapp') ||
-                url.startsWith('tel:') ||
-                url.startsWith('mailto:') ||
-                url.contains('t.me')) {
-              openOutside(url);
+            final u = request.url;
+            if (u.contains('wa.me') ||
+                u.contains('whatsapp') ||
+                u.contains('api.whatsapp') ||
+                u.startsWith('tel:') ||
+                u.startsWith('mailto:') ||
+                u.contains('t.me')) {
+              openOutside(u);
               return NavigationDecision.prevent;
             }
             return NavigationDecision.navigate;
           },
         ),
       )
-      ..loadRequest(
-        Uri.parse('https://kayview-api.onrender.com/prime-keys.html'),
-      );
+      ..loadRequest(Uri.parse(url));
   }
 
   @override
@@ -79,12 +99,37 @@ class _KayviewWebState extends State<KayviewWeb> {
                     CircularProgressIndicator(color: Colors.white),
                     SizedBox(height: 12),
                     Text(
-                      'KAYVIEW...',
+                      'WAKING UP KAYVIEW...',
                       style: TextStyle(
                         color: Colors.white,
                         fontWeight: FontWeight.bold,
-                        letterSpacing: 3,
+                        letterSpacing: 2,
                       ),
+                    ),
+                    SizedBox(height: 6),
+                    Text(
+                      'Render sleeps, give it 20 sec',
+                      style: TextStyle(color: Colors.white70, fontSize: 12),
+                    ),
+                  ],
+                ),
+              ),
+            if (hasError)
+              Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.wifi_off, color: Colors.white, size: 50),
+                    const SizedBox(height: 12),
+                    const Text(
+                      'Could not load',
+                      style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 16),
+                    ElevatedButton(
+                      onPressed: loadFresh,
+                      style: ElevatedButton.styleFrom(backgroundColor: Colors.white, foregroundColor: Colors.black),
+                      child: const Text('TAP TO RETRY'),
                     ),
                   ],
                 ),
