@@ -40,7 +40,6 @@ class _KayviewWebState extends State<KayviewWeb> {
       loading = true;
       hasError = false;
     });
-    controller.clearCache();
     controller.loadRequest(
       Uri.parse('$url?v=${DateTime.now().millisecondsSinceEpoch}'),
     );
@@ -51,20 +50,23 @@ class _KayviewWebState extends State<KayviewWeb> {
     super.initState();
     controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
-      ..setBackgroundColor(const Color(0xFF0F172A))
+      ..enableZoom(false)
+      // PRETEND TO BE CHROME - this is the fix for blank page
+      ..setUserAgent(
+        'Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
+      )
+      ..setBackgroundColor(const Color(0xFFFFFFFF))
       ..setNavigationDelegate(
         NavigationDelegate(
           onPageStarted: (_) => setState(() {
             loading = true;
             hasError = false;
           }),
-          onPageFinished: (_) => setState(() => loading = false),
-          onWebResourceError: (error) {
-            // Auto-retry once on CACHE_MISS, don't show Android error page
-            if (error.errorCode == -1 || error.description.contains('CACHE')) {
-              loadFresh();
-              return;
-            }
+          onPageFinished: (_) async {
+            await Future.delayed(const Duration(seconds: 1));
+            if (mounted) setState(() => loading = false);
+          },
+          onWebResourceError: (e) {
             setState(() {
               loading = false;
               hasError = true;
@@ -84,48 +86,59 @@ class _KayviewWebState extends State<KayviewWeb> {
             return NavigationDecision.navigate;
           },
         ),
-      );
-
-    // THIS is the real fix - wipe old poisoned cache before first load
-    controller.clearCache().then((_) {
-      controller.loadRequest(Uri.parse(url));
-    });
+      )
+      ..loadRequest(Uri.parse(url));
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0F172A),
+      backgroundColor: Colors.white,
       body: SafeArea(
         child: Stack(
           children: [
             WebViewWidget(controller: controller),
+
+            Positioned(
+              right: 16,
+              bottom: 16,
+              child: FloatingActionButton.small(
+                backgroundColor: Colors.black,
+                onPressed: loadFresh,
+                child: const Icon(Icons.refresh, color: Colors.white),
+              ),
+            ),
+
             if (loading)
-              const Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    CircularProgressIndicator(color: Colors.white),
-                    SizedBox(height: 12),
-                    Text(
-                      'WAKING UP KAYVIEW...',
-                      style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, letterSpacing: 2),
-                    ),
-                  ],
+              Container(
+                color: Colors.white,
+                child: const Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      CircularProgressIndicator(color: Colors.black),
+                      SizedBox(height: 12),
+                      Text(
+                        'WAKING UP KAYVIEW...',
+                        style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold, letterSpacing: 2),
+                      ),
+                    ],
+                  ),
                 ),
               ),
+
             if (hasError)
               Center(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(Icons.wifi_off, color: Colors.white, size: 50),
+                    const Icon(Icons.wifi_off, color: Colors.black, size: 50),
                     const SizedBox(height: 12),
-                    const Text('Could not load', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                    const Text('Could not load', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
                     const SizedBox(height: 16),
                     ElevatedButton(
                       onPressed: loadFresh,
-                      style: ElevatedButton.styleFrom(backgroundColor: Colors.white, foregroundColor: Colors.black),
+                      style: ElevatedButton.styleFrom(backgroundColor: Colors.black, foregroundColor: Colors.white),
                       child: const Text('TAP TO RETRY'),
                     ),
                   ],
