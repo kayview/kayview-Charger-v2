@@ -6,25 +6,6 @@ import 'package:webview_flutter/webview_flutter.dart';
 import 'package:flutter_overlay_window/flutter_overlay_window.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-// ============================================================
-// KAYVIEW CHARGER - FIXED main.dart
-// Keeps your fix: PRETEND TO BE CHROME, WAKING UP, TAP TO RETRY, openOutside
-// Adds back: ONBOARDING FIRST (R1000) + SYSTEM OVERLAY over MT5 + LOCAL app
-//
-// WHY YOUR PASTED FILE WAS BROKEN:
-// - It loaded ONLY https://kayview-api.onrender.com/prime-keys.html (remote)
-//   -> If Render is asleep / offline = blank page / Could not load
-// - No onboarding, no overlay, no local fallback
-//
-// FIX:
-// - Onboarding FIRST: Splash -> START -> LOGIN -> Pay R1000 -> Trade Solutions -> ENTER ROBOT KEY -> Home
-// - Home loads LOCAL assets/index.html (your V3 ALL IN 1) - never blank, works offline
-// - Remote keys URL kept as fallback / for key check, not as the whole app
-// - Chrome UserAgent kept, plus KAYVIEW tag
-// - Loading + Error + Retry kept from your file
-// - Overlay: START -> Allow display over other apps -> KV floats over MT5, Drag, Tap PLAY/STOP, Pink RUNNING / Grey STOPPED
-// ============================================================
-
 @pragma('vm:entry-point')
 void overlayMain() { runApp(const OverlayApp()); }
 
@@ -61,7 +42,7 @@ class _OverlayAppState extends State<OverlayApp> {
         backgroundColor: Colors.transparent,
         body: GestureDetector(
           onTap: _toggle,
-          onPanUpdate: (details) { FlutterOverlayWindow.moveOverlay(details.globalPosition); },
+          onPanUpdate: (details) { FlutterOverlayWindow.moveOverlay(OverlayPosition(details.globalPosition.dx, details.globalPosition.dy)); },
           child: Container(
             width: 72, height: 72,
             decoration: BoxDecoration(
@@ -254,7 +235,7 @@ class _KayviewRootState extends State<KayviewRoot> {
       SizedBox(width: double.infinity, height: 52, child: ElevatedButton(onPressed: !agreed ? null : () => setState(() => step = OnboardStep.tradeSolutions), style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFFACC15), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(26))), child: const Text('Buy Now', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)))),
       const SizedBox(height: 12),
       const Center(child: Text('Copyright © 2026 All Rights Reserved. KAYVIEW CHARGER', style: TextStyle(color: Colors.white30, fontSize: 10))),
-    ]))));
+    ])));
   }
 
   Widget _payMethod(String title, String sub, IconData icon, VoidCallback onTap) {
@@ -275,7 +256,7 @@ class _KayviewRootState extends State<KayviewRoot> {
       _payMethod('SnapScan', 'SnapScan • Scan to pay', Icons.qr_code_scanner, () => _paySuccess('SnapScan')),
       const SizedBox(height: 8),
       const Center(child: Text('Secured via Trade Solutions • ZAR, NOT \$', style: TextStyle(color: Colors.white38, fontSize: 11))),
-    ]))));
+    ])));
   }
 
   void _paySuccess(String method) {
@@ -322,7 +303,6 @@ class _KayviewRootState extends State<KayviewRoot> {
   }
 }
 
-// ---------- HOME - Fixed WebView ----------
 class KayviewWeb extends StatefulWidget {
   const KayviewWeb({super.key});
   @override
@@ -334,8 +314,6 @@ class _KayviewWebState extends State<KayviewWeb> {
   bool loading = true;
   bool hasError = false;
   bool overlayOn = false;
-
-  // Remote keys page - kept for key check only, NOT as main app
   final String remoteKeysUrl = 'https://kayview-api.onrender.com/prime-keys.html';
 
   Future<void> openOutside(String link) async {
@@ -347,7 +325,6 @@ class _KayviewWebState extends State<KayviewWeb> {
 
   void loadFresh() {
     setState(() { loading = true; hasError = false; });
-    // FIX: Load LOCAL app, not remote - no blank page if Render sleeps
     controller.loadFlutterAsset('assets/index.html');
   }
 
@@ -388,7 +365,6 @@ class _KayviewWebState extends State<KayviewWeb> {
     controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..enableZoom(false)
-      // PRETEND TO BE CHROME - your fix, kept + KAYVIEW tag
       ..setUserAgent('Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36 KAYVIEW-CHARGER/1.0')
       ..setBackgroundColor(const Color(0xFF020617))
       ..setNavigationDelegate(
@@ -397,7 +373,6 @@ class _KayviewWebState extends State<KayviewWeb> {
           onPageFinished: (_) async {
             await Future.delayed(const Duration(seconds: 1));
             if (mounted) setState(() => loading = false);
-            // Hook START/STOP inside WebView -> trigger system overlay
             controller.runJavaScript('''
               (function(){
                 if(window.__kayviewHooked) return; window.__kayviewHooked = true;
@@ -417,7 +392,6 @@ class _KayviewWebState extends State<KayviewWeb> {
           },
           onNavigationRequest: (request) {
             final u = request.url;
-            // MT5 deep link - Execute -> Open MT5
             if (u.startsWith('mt5://')) {
               openOutside(u);
               return NavigationDecision.prevent;
@@ -434,7 +408,6 @@ class _KayviewWebState extends State<KayviewWeb> {
         if (msg.message == 'START') await _onStartPressed();
         else if (msg.message == 'STOP') await _onStopPressed();
       })
-      // FIX: Local asset first - instant, no Render wake-up needed
       ..loadFlutterAsset('assets/index.html');
 
     FlutterOverlayWindow.overlayListener.listen((data) {
