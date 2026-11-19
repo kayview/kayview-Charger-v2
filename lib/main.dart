@@ -1,10 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
-import 'package:web_socket_channel/web_socket_channel.dart';
-import 'package:url_launcher/url_launcher.dart';
-import 'package:flutter_overlay_window/flutter_overlay_window.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -30,18 +27,9 @@ const List<KayTheme> kThemes = [
   KayTheme('Silver Light', Color(0xFFF1F5F9), Colors.white, Color(0xFFE2E8F0), Color(0xFF64748B), Color(0xFF334155), Color(0xFF0F172A), Color(0xFF64748B)),
 ];
 
-// ALL 10 USE YOUR 1 PICTURE - you only have 1 file
 const List<String> kLogos = [
-  'assets/logos/logo1_original.jpg',
-  'assets/logos/logo1_original.jpg',
-  'assets/logos/logo1_original.jpg',
-  'assets/logos/logo1_original.jpg',
-  'assets/logos/logo1_original.jpg',
-  'assets/logos/logo1_original.jpg',
-  'assets/logos/logo1_original.jpg',
-  'assets/logos/logo1_original.jpg',
-  'assets/logos/logo1_original.jpg',
-  'assets/logos/logo1_original.jpg',
+  'assets/logos/logo1_original.jpg','assets/logos/logo1_original.jpg','assets/logos/logo1_original.jpg','assets/logos/logo1_original.jpg','assets/logos/logo1_original.jpg',
+  'assets/logos/logo1_original.jpg','assets/logos/logo1_original.jpg','assets/logos/logo1_original.jpg','assets/logos/logo1_original.jpg','assets/logos/logo1_original.jpg',
 ];
 
 const List<String> kLogoNames = [
@@ -93,7 +81,7 @@ class _KayviewAppState extends State<KayviewApp> with SingleTickerProviderStateM
   final mtServerCtrl = TextEditingController();
 
   late AnimationController earCtrl;
-  WebSocketChannel? channel;
+  WebSocket? channel;
   StreamSubscription? tickSub;
 
   KayTheme get th => kThemes[themeIdx];
@@ -105,11 +93,11 @@ class _KayviewAppState extends State<KayviewApp> with SingleTickerProviderStateM
     _connectDeriv();
   }
 
-  void _connectDeriv() {
+  void _connectDeriv() async {
     try {
-      channel = WebSocketChannel.connect(Uri.parse('wss://ws.derivws.com/websockets/v3?app_id=1089'));
-      channel!.sink.add(jsonEncode({'ticks': 'frxXAUUSD', 'subscribe': 1}));
-      tickSub = channel!.stream.listen((msg) {
+      channel = await WebSocket.connect('wss://ws.derivws.com/websockets/v3?app_id=1089');
+      channel!.add(jsonEncode({'ticks': 'frxXAUUSD', 'subscribe': 1}));
+      tickSub = channel!.listen((msg) {
         final d = jsonDecode(msg);
         if (d['tick'] != null) {
           setState(() => livePrice = double.tryParse(d['tick']['quote'].toString()) ?? livePrice);
@@ -122,7 +110,7 @@ class _KayviewAppState extends State<KayviewApp> with SingleTickerProviderStateM
   void dispose() {
     earCtrl.dispose();
     tickSub?.cancel();
-    channel?.sink.close();
+    channel?.close();
     super.dispose();
   }
 
@@ -157,20 +145,9 @@ class _KayviewAppState extends State<KayviewApp> with SingleTickerProviderStateM
     if (armed) {
       earCtrl.repeat();
       toast('Bot armed — waiting for signal');
-      try {
-        final ok = await FlutterOverlayWindow.isPermissionGranted();
-        if (!ok) await FlutterOverlayWindow.requestPermission();
-        await FlutterOverlayWindow.showOverlay(
-          height: 150, width: 150,
-          enableDrag: true, overlayTitle: 'KAYVIEW', overlayContent: 'Running',
-          flag: OverlayFlag.defaultFlag, positionGravity: PositionGravity.right,
-        );
-        await FlutterOverlayWindow.shareData('running');
-      } catch (_) {}
       Future.delayed(const Duration(milliseconds: 1200), () { if (armed) _analyse(); });
     } else {
       earCtrl.stop();
-      try { await FlutterOverlayWindow.closeOverlay(); } catch (_) {}
       toast('Bot stopped');
     }
   }
@@ -202,35 +179,38 @@ class _KayviewAppState extends State<KayviewApp> with SingleTickerProviderStateM
     _showExecFlow(n, lot);
   }
 
+  Future<String?> _httpGet(String url) async {
+    try {
+      final client = HttpClient();
+      final req = await client.getUrl(Uri.parse(url));
+      final res = await req.close().timeout(const Duration(seconds: 15));
+      if (res.statusCode == 200) {
+        final body = await res.transform(utf8.decoder).join();
+        client.close();
+        return body;
+      }
+      client.close();
+    } catch (_) {}
+    return null;
+  }
+
   Future<void> _fetchNews() async {
     setState(() => newsStatus = 'Fetching REAL live calendar...');
-    try {
-      final today = DateTime.now();
-      final d1 = today.toIso8601String().substring(0, 10);
-      final d2 = today.add(const Duration(days: 7)).toIso8601String().substring(0, 10);
-      final res = await http.get(Uri.parse('https://api.tradingeconomics.com/calendar?c=guest:guest&f=json&d1=$d1&d2=$d2')).timeout(const Duration(seconds: 15));
-      if (res.statusCode == 200) {
-        final data = jsonDecode(res.body) as List;
+    final today = DateTime.now();
+    final d1 = today.toIso8601String().substring(0, 10);
+    final d2 = today.add(const Duration(days: 7)).toIso8601String().substring(0, 10);
+    final body = await _httpGet('https://api.tradingeconomics.com/calendar?c=guest:guest&f=json&d1=$d1&d2=$d2');
+    if (body != null) {
+      try {
+        final data = jsonDecode(body) as List;
         final high = data.where((e) => e['Importance'] == 'High' || e['Importance'] == '3').take(12).toList();
         setState(() {
           realEvents = high.map((e) => {'title': e['Category'], 'currency': e['Currency'], 'date': (e['Date'] ?? '').toString().substring(0, 10), 'time': (e['Date'] ?? '').toString().length > 11 ? (e['Date'] as String).substring(11, 16) : '', 'forecast': e['Forecast'], 'previous': e['Previous'], 'actual': e['Actual']}).toList();
           newsStatus = 'LIVE - ${DateTime.now().toLocal().toString().substring(11, 19)} - Real data only';
         });
         return;
-      }
-    } catch (_) {}
-    try {
-      final res = await http.get(Uri.parse('https://api.allorigins.win/raw?url=${Uri.encodeComponent('https://nfs.faireconomy.media/ff_calendar_thisweek.json')}')).timeout(const Duration(seconds: 15));
-      if (res.statusCode == 200) {
-        final data = jsonDecode(res.body) as List;
-        final high = data.where((e) => e['impact'] == 'High').take(12).toList();
-        setState(() {
-          realEvents = high.map((e) => {'title': e['title'], 'currency': e['country'], 'date': e['date'], 'time': e['time'], 'forecast': e['forecast'], 'previous': e['previous']}).toList();
-          newsStatus = 'LIVE - Forex Factory - Real data only';
-        });
-        return;
-      }
-    } catch (_) {}
+      } catch (_) {}
+    }
     setState(() => newsStatus = 'Could NOT load real live news - check internet and tap Refresh. No fake events shown.');
   }
 
@@ -273,7 +253,6 @@ class _KayviewAppState extends State<KayviewApp> with SingleTickerProviderStateM
     );
   }
 
-  // ---------- HOME - FIXED BRACKETS ----------
   Widget _homeTab() {
     return ListView(
       padding: const EdgeInsets.only(bottom: 100),
@@ -281,39 +260,21 @@ class _KayviewAppState extends State<KayviewApp> with SingleTickerProviderStateM
         Container(
           margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
           height: avatarSize,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(27),
-            gradient: LinearGradient(colors: [th.card, th.accent.withOpacity(0.35)]),
-          ),
+          decoration: BoxDecoration(borderRadius: BorderRadius.circular(27), gradient: LinearGradient(colors: [th.card, th.accent.withOpacity(0.35)])),
           child: Stack(
             children: [
               Positioned.fill(child: ClipRRect(borderRadius: BorderRadius.circular(27), child: _logoImg(kLogos[logoIdx]))),
               Container(decoration: BoxDecoration(borderRadius: BorderRadius.circular(27), gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Colors.black.withOpacity(0.02), Colors.black.withOpacity(0.55), Colors.black.withOpacity(0.92)]))),
-              Positioned(
-                left: 32, top: avatarSize * 0.22,
-                child: RotationTransition(
-                  turns: earCtrl,
-                  child: Container(width: avatarSize * 0.38, height: avatarSize * 0.38, decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: th.accent, width: 2))),
-                ),
-              ),
+              Positioned(left: 32, top: avatarSize * 0.22, child: RotationTransition(turns: earCtrl, child: Container(width: avatarSize * 0.38, height: avatarSize * 0.38, decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: th.accent, width: 2))))),
               Positioned(
                 left: 0, right: 0, bottom: 18,
-                child: Column(
-                  children: [
-                    Text('KAYVIEW CHARGER', style: TextStyle(fontFamily: 'Georgia', fontSize: 26, letterSpacing: 1.2, color: Colors.white, fontWeight: FontWeight.w400)),
-                    const SizedBox(height: 10),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 9),
-                      decoration: glowBox(color: Colors.black.withOpacity(0.68), radius: 20),
-                      child: Row(mainAxisSize: MainAxisSize.min, children: [Text('Powered By ', style: TextStyle(color: Colors.white, fontSize: 14)), Text('Ambient', style: TextStyle(color: th.accent, fontWeight: FontWeight.w700, fontSize: 14))]),
-                    ),
-                  ],
-                ),
+                child: Column(children: [
+                  Text('KAYVIEW CHARGER', style: TextStyle(fontFamily: 'Georgia', fontSize: 26, letterSpacing: 1.2, color: Colors.white, fontWeight: FontWeight.w400)),
+                  const SizedBox(height: 10),
+                  Container(padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 9), decoration: glowBox(color: Colors.black.withOpacity(0.68), radius: 20), child: Row(mainAxisSize: MainAxisSize.min, children: [Text('Powered By ', style: TextStyle(color: Colors.white, fontSize: 14)), Text('Ambient', style: TextStyle(color: th.accent, fontWeight: FontWeight.w700, fontSize: 14))])),
+                ]),
               ),
-              Positioned(
-                top: 10, right: 12,
-                child: Container(padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5), decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(20), border: Border.all(color: th.accent)), child: Text('720p • HD', style: TextStyle(color: Colors.white, fontSize: 10))),
-              ),
+              Positioned(top: 10, right: 12, child: Container(padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5), decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(20), border: Border.all(color: th.accent)), child: Text('720p • HD', style: TextStyle(color: Colors.white, fontSize: 10)))),
             ],
           ),
         ),
@@ -349,19 +310,7 @@ class _KayviewAppState extends State<KayviewApp> with SingleTickerProviderStateM
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 100),
       children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.end,
-          children: [
-            GestureDetector(
-              onTap: _showNews,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(color: th.accent.withOpacity(0.15), borderRadius: BorderRadius.circular(20), border: Border.all(color: th.accent.withOpacity(0.5))),
-                child: Text('✨ NEWS', style: TextStyle(color: th.accent, fontWeight: FontWeight.w700)),
-              ),
-            ),
-          ],
-        ),
+        Row(mainAxisAlignment: MainAxisAlignment.end, children: [GestureDetector(onTap: _showNews, child: Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6), decoration: BoxDecoration(color: th.accent.withOpacity(0.15), borderRadius: BorderRadius.circular(20), border: Border.all(color: th.accent.withOpacity(0.5))), child: Text('✨ NEWS', style: TextStyle(color: th.accent, fontWeight: FontWeight.w700))))]),
         const SizedBox(height: 10),
         Center(child: Container(width: 72, height: 72, decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.black, border: Border.all(color: th.accent, width: 2)), child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [Text('KV', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18, color: th.text)), Text('AMBIENT HOST', style: TextStyle(fontSize: 7, letterSpacing: 1.2, color: th.accent))]))),
         const SizedBox(height: 10),
@@ -450,7 +399,7 @@ class _KayviewAppState extends State<KayviewApp> with SingleTickerProviderStateM
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text('▣ METATRADER', style: TextStyle(fontWeight: FontWeight.w800, color: th.text)),
             const SizedBox(height: 10),
-            Text('Enter your broker login and tap Connect — the app links your account through the MetaCopier API. AI sniper signals will execute here automatically.', style: TextStyle(color: th.muted, height: 1.6)),
+            Text('Enter your broker login and tap Connect — the app links your account. AI sniper signals will execute here automatically.', style: TextStyle(color: th.muted, height: 1.6)),
             const SizedBox(height: 14),
             Text('ACCOUNT ID', style: TextStyle(color: th.muted, fontSize: 11, letterSpacing: 1.2)),
             TextField(controller: mtAccCtrl, decoration: InputDecoration(hintText: 'e.g. 297486970', filled: true, fillColor: th.bg, border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)))),
@@ -489,9 +438,7 @@ class _KayviewAppState extends State<KayviewApp> with SingleTickerProviderStateM
   }
 
   Future<void> _openMT5() async {
-    toast('Opening MT5...');
-    final uri = Uri.parse('https://www.metatrader5.com');
-    if (await canLaunchUrl(uri)) await launchUrl(uri, mode: LaunchMode.externalApplication);
+    toast('Opening MT5... Please open MT5 app manually');
   }
 
   Widget _settingsTab() {
@@ -565,10 +512,7 @@ class _KayviewAppState extends State<KayviewApp> with SingleTickerProviderStateM
             itemCount: kThemes.length,
             itemBuilder: (c, i) => GestureDetector(
               onTap: () { setState(() => themeIdx = i); Navigator.pop(context); toast('Theme: ${kThemes[i].name} - whole UI changed'); },
-              child: Container(
-                decoration: BoxDecoration(color: th.card2, borderRadius: BorderRadius.circular(14), border: Border.all(color: i == themeIdx ? th.accent : Colors.transparent)),
-                child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [CircleAvatar(backgroundColor: kThemes[i].accent, radius: 14), const SizedBox(height: 8), Text('${i + 1}. ${kThemes[i].name}', style: TextStyle(color: th.text, fontWeight: FontWeight.w700))]),
-              ),
+              child: Container(decoration: BoxDecoration(color: th.card2, borderRadius: BorderRadius.circular(14), border: Border.all(color: i == themeIdx ? th.accent : Colors.transparent)), child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [CircleAvatar(backgroundColor: kThemes[i].accent, radius: 14), const SizedBox(height: 8), Text('${i + 1}. ${kThemes[i].name}', style: TextStyle(color: th.text, fontWeight: FontWeight.w700))])),
             ),
           ),
         ]),
