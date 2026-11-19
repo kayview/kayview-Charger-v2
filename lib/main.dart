@@ -11,7 +11,6 @@ void main() {
   runApp(const KayviewApp());
 }
 
-// ---------- THEMES - 10 ----------
 class KayTheme {
   final String name;
   final Color bg, card, card2, accent, accent2, text, muted;
@@ -31,17 +30,18 @@ const List<KayTheme> kThemes = [
   KayTheme('Silver Light', Color(0xFFF1F5F9), Colors.white, Color(0xFFE2E8F0), Color(0xFF64748B), Color(0xFF334155), Color(0xFF0F172A), Color(0xFF64748B)),
 ];
 
+// ALL 10 USE YOUR 1 PICTURE - you only have 1 file
 const List<String> kLogos = [
   'assets/logos/logo1_original.jpg',
-  'assets/logos/logo2_purple_eye.jpg',
-  'assets/logos/logo3_neon_ring.jpg',
-  'assets/logos/logo4_dark_glow.jpg',
-  'assets/logos/logo5_violet_core.jpg',
-  'assets/logos/logo6_pink_pulse.jpg',
-  'assets/logos/logo7_blue_flame.jpg',
-  'assets/logos/logo8_deep_purple.jpg',
-  'assets/logos/logo9_cyber_eye.jpg',
-  'assets/logos/logo10_mystic.jpg',
+  'assets/logos/logo1_original.jpg',
+  'assets/logos/logo1_original.jpg',
+  'assets/logos/logo1_original.jpg',
+  'assets/logos/logo1_original.jpg',
+  'assets/logos/logo1_original.jpg',
+  'assets/logos/logo1_original.jpg',
+  'assets/logos/logo1_original.jpg',
+  'assets/logos/logo1_original.jpg',
+  'assets/logos/logo1_original.jpg',
 ];
 
 const List<String> kLogoNames = [
@@ -69,7 +69,7 @@ class _KayviewAppState extends State<KayviewApp> with SingleTickerProviderStateM
   int effectIdx = 0;
   int tabIdx = 0;
   bool onboarded = false;
-  int onboardStep = 0; // 0 Welcome, 1 Login, 2 Pay R1000, 3 Robot Key
+  int onboardStep = 0;
   bool armed = false;
   String currentPair = 'XAUUSD';
   String currentTF = 'M15';
@@ -126,7 +126,6 @@ class _KayviewAppState extends State<KayviewApp> with SingleTickerProviderStateM
     super.dispose();
   }
 
-  // ---------- SOFT PURPLE GLOW - ONLY pill / controls / robot list ----------
   BoxDecoration glowBox({required Color color, double radius = 16}) {
     return BoxDecoration(
       color: color,
@@ -139,6 +138,18 @@ class _KayviewAppState extends State<KayviewApp> with SingleTickerProviderStateM
     );
   }
 
+  Widget _logoImg(String path, {double? w, double? h}) {
+    return Image.asset(
+      path, width: w, height: h, fit: BoxFit.cover,
+      errorBuilder: (c, e, s) => Container(
+        width: w, height: h,
+        decoration: BoxDecoration(gradient: LinearGradient(colors: [th.accent, th.accent2])),
+        alignment: Alignment.center,
+        child: const Text('KV', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 22)),
+      ),
+    );
+  }
+
   void toast(String m) => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m), backgroundColor: Colors.white, behavior: SnackBarBehavior.floating));
 
   void toggleBot() async {
@@ -146,11 +157,14 @@ class _KayviewAppState extends State<KayviewApp> with SingleTickerProviderStateM
     if (armed) {
       earCtrl.repeat();
       toast('Bot armed — waiting for signal');
-      // SYSTEM OVERLAY - floats over MT5
       try {
         final ok = await FlutterOverlayWindow.isPermissionGranted();
         if (!ok) await FlutterOverlayWindow.requestPermission();
-        await FlutterOverlayWindow.showOverlay(enableDrag: true, overlayTitle: 'KAYVIEW', overlayContent: 'Running', flag: OverlayFlag.defaultFlag, positionGravity: PositionGravity.right);
+        await FlutterOverlayWindow.showOverlay(
+          height: 150, width: 150,
+          enableDrag: true, overlayTitle: 'KAYVIEW', overlayContent: 'Running',
+          flag: OverlayFlag.defaultFlag, positionGravity: PositionGravity.right,
+        );
         await FlutterOverlayWindow.shareData('running');
       } catch (_) {}
       Future.delayed(const Duration(milliseconds: 1200), () { if (armed) _analyse(); });
@@ -181,7 +195,6 @@ class _KayviewAppState extends State<KayviewApp> with SingleTickerProviderStateM
     if (signal == null) { toast('Tap ANALYSE first'); return; }
     final n = int.tryParse(tradesCtrl.text) ?? 1;
     final lot = lotCtrl.text;
-    // Add to MT5 positions
     for (int i = 0; i < n; i++) {
       mt5Trades.add({'pair': currentPair, 'dir': signal!['dir'], 'lot': lot, 'entry': signal!['entry'], 'sl': signal!['sl'], 'tp1': signal!['tp1'], 'tp2': signal!['tp2'], 'id': 'KV-${DateTime.now().millisecondsSinceEpoch.toString().substring(8)}'});
     }
@@ -206,7 +219,6 @@ class _KayviewAppState extends State<KayviewApp> with SingleTickerProviderStateM
         return;
       }
     } catch (_) {}
-    // Fallback 2 - Forex Factory real
     try {
       final res = await http.get(Uri.parse('https://api.allorigins.win/raw?url=${Uri.encodeComponent('https://nfs.faireconomy.media/ff_calendar_thisweek.json')}')).timeout(const Duration(seconds: 15));
       if (res.statusCode == 200) {
@@ -222,7 +234,6 @@ class _KayviewAppState extends State<KayviewApp> with SingleTickerProviderStateM
     setState(() => newsStatus = 'Could NOT load real live news - check internet and tap Refresh. No fake events shown.');
   }
 
-  // ---------- ONBOARDING ----------
   Widget _onboarding() {
     final steps = [
       _onboardPage(title: 'WELCOME', sub: 'KAYVIEW CHARGER\nPowered By AMBIENT', btn: 'START', onTap: () => setState(() => onboardStep = 1)),
@@ -240,7 +251,7 @@ class _KayviewAppState extends State<KayviewApp> with SingleTickerProviderStateM
     return Padding(
       padding: const EdgeInsets.all(24),
       child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-        ClipRRect(borderRadius: BorderRadius.circular(24), child: Image.asset(kLogos[0], height: 260, fit: BoxFit.cover)),
+        ClipRRect(borderRadius: BorderRadius.circular(24), child: _logoImg(kLogos[0], h: 260)),
         const SizedBox(height: 24),
         Text(title, style: TextStyle(fontSize: 28, fontWeight: FontWeight.w800, color: th.text, letterSpacing: 1.2)),
         const SizedBox(height: 8),
@@ -262,111 +273,167 @@ class _KayviewAppState extends State<KayviewApp> with SingleTickerProviderStateM
     );
   }
 
-  // ---------- HOME ----------
+  // ---------- HOME - FIXED BRACKETS ----------
   Widget _homeTab() {
-    return ListView(padding: const EdgeInsets.only(bottom: 100), children: [
-      // HERO - 720p, NO glow on corners, NO neon on logo - glow is only on pill/controls/list
-      Container(
-        margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-        height: avatarSize,
-        decoration: BoxDecoration(borderRadius: BorderRadius.circular(27), image: DecorationImage(image: AssetImage(kLogos[logoIdx]), fit: BoxFit.cover, alignment: const Alignment(0, -0.3))),
-        child: Stack(children: [
-          Container(decoration: BoxDecoration(borderRadius: BorderRadius.circular(27), gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Colors.black.withOpacity(0.02), Colors.black.withOpacity(0.55), Colors.black.withOpacity(0.92)]))),
-          // EAR CIRCLE - spins live on Start, on marked ear circle
-          Positioned(left: 32, top: avatarSize * 0.22, child: RotationTransition(turns: earCtrl, child: Container(width: avatarSize * 0.38, height: avatarSize * 0.38, decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: th.accent, width: 2, style: BorderStyle.solid)))))),
-          Positioned(left: 0, right: 0, bottom: 18, child: Column(children: [
-            Text('KAYVIEW CHARGER', style: TextStyle(fontFamily: 'Georgia', fontSize: 26, letterSpacing: 1.2, color: Colors.white, fontWeight: FontWeight.w400)),
-            const SizedBox(height: 10),
-            // Powered By pill - SOFT PURPLE GLOW ONLY HERE
-            Container(padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 9), decoration: glowBox(color: Colors.black.withOpacity(0.68), radius: 20), child: Row(mainAxisSize: MainAxisSize.min, children: [Text('Powered By ', style: TextStyle(color: Colors.white, fontSize: 14)), Text('Ambient', style: TextStyle(color: th.accent, fontWeight: FontWeight.w700, fontSize: 14))])),
-          ])),
-          Positioned(top: 10, right: 12, child: Container(padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5), decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(20), border: Border.all(color: th.accent)), child: Text('720p • HD', style: TextStyle(color: Colors.white, fontSize: 10)))),
-        ]),
-      ),
-      // Remove / Start / Symbols - SOFT PURPLE GLOW
-      Container(margin: const EdgeInsets.fromLTRB(16, 14, 16, 0), padding: const EdgeInsets.all(6), decoration: glowBox(color: th.card, radius: 30), child: Row(children: [
-        Expanded(child: TextButton(onPressed: () => _confirmRemove(), child: Text('✕  Remove', style: TextStyle(color: th.text, fontSize: 16)))),
-        Container(width: 1, height: 22, color: Colors.white10),
-        Expanded(child: TextButton(onPressed: toggleBot, child: Text(armed ? '■  Stop' : '▶  Start', style: TextStyle(color: th.text, fontSize: 16, fontWeight: FontWeight.w700)))),
-        Container(width: 1, height: 22, color: Colors.white10),
-        Expanded(child: TextButton(onPressed: () => setState(() => tabIdx = 2), child: Text('▦  Symbols', style: TextStyle(color: th.text, fontSize: 16)))),
-      ])),
-      // ROBOT LIST - SOFT PURPLE GLOW
-      Padding(padding: const EdgeInsets.fromLTRB(16, 16, 16, 0), child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text('ROBOT LIST', style: TextStyle(color: th.muted, fontSize: 12)), GestureDetector(onTap: _addKeyDialog, child: Text('+ Add Key', style: TextStyle(color: th.accent)))])),
-      const SizedBox(height: 8),
-      if (hasRobot)
-        Container(margin: const EdgeInsets.symmetric(horizontal: 16), padding: const EdgeInsets.all(13), decoration: glowBox(color: th.card), child: Row(children: [
-          ClipRRect(borderRadius: BorderRadius.circular(22), child: Image.asset(kLogos[1], width: 44, height: 44, fit: BoxFit.cover)),
-          const SizedBox(width: 12),
-          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('KAYVIEW CHARGER', style: TextStyle(fontWeight: FontWeight.w700, color: th.text)), Text(robotKey, style: TextStyle(fontFamily: 'monospace', color: th.muted, fontSize: 12)), Text('Key expires in 361d 15h', style: TextStyle(color: th.accent, fontSize: 12))])),
-          IconButton(onPressed: _confirmRemove, icon: Icon(Icons.delete_outline, color: th.accent)),
-        ]))
-      else
-        Container(margin: const EdgeInsets.symmetric(horizontal: 16), padding: const EdgeInsets.all(20), decoration: glowBox(color: th.card), child: Center(child: Text('No robots. Tap + Add Key', style: TextStyle(color: th.muted)))),
-      // Quick info
-      Padding(padding: const EdgeInsets.all(16), child: Text('Pair: $currentPair • Timeframe: $currentTF • Effect: ${kEffects[effectIdx]} • Theme changes whole UI including bottom buttons, KV ball, robot list and logos.', style: TextStyle(color: th.muted, fontSize: 12, height: 1.6))),
-    ]);
+    return ListView(
+      padding: const EdgeInsets.only(bottom: 100),
+      children: [
+        Container(
+          margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+          height: avatarSize,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(27),
+            gradient: LinearGradient(colors: [th.card, th.accent.withOpacity(0.35)]),
+          ),
+          child: Stack(
+            children: [
+              Positioned.fill(child: ClipRRect(borderRadius: BorderRadius.circular(27), child: _logoImg(kLogos[logoIdx]))),
+              Container(decoration: BoxDecoration(borderRadius: BorderRadius.circular(27), gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Colors.black.withOpacity(0.02), Colors.black.withOpacity(0.55), Colors.black.withOpacity(0.92)]))),
+              Positioned(
+                left: 32, top: avatarSize * 0.22,
+                child: RotationTransition(
+                  turns: earCtrl,
+                  child: Container(width: avatarSize * 0.38, height: avatarSize * 0.38, decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: th.accent, width: 2))),
+                ),
+              ),
+              Positioned(
+                left: 0, right: 0, bottom: 18,
+                child: Column(
+                  children: [
+                    Text('KAYVIEW CHARGER', style: TextStyle(fontFamily: 'Georgia', fontSize: 26, letterSpacing: 1.2, color: Colors.white, fontWeight: FontWeight.w400)),
+                    const SizedBox(height: 10),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 9),
+                      decoration: glowBox(color: Colors.black.withOpacity(0.68), radius: 20),
+                      child: Row(mainAxisSize: MainAxisSize.min, children: [Text('Powered By ', style: TextStyle(color: Colors.white, fontSize: 14)), Text('Ambient', style: TextStyle(color: th.accent, fontWeight: FontWeight.w700, fontSize: 14))]),
+                    ),
+                  ],
+                ),
+              ),
+              Positioned(
+                top: 10, right: 12,
+                child: Container(padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5), decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(20), border: Border.all(color: th.accent)), child: Text('720p • HD', style: TextStyle(color: Colors.white, fontSize: 10))),
+              ),
+            ],
+          ),
+        ),
+        Container(
+          margin: const EdgeInsets.fromLTRB(16, 14, 16, 0),
+          padding: const EdgeInsets.all(6),
+          decoration: glowBox(color: th.card, radius: 30),
+          child: Row(children: [
+            Expanded(child: TextButton(onPressed: () => _confirmRemove(), child: Text('✕  Remove', style: TextStyle(color: th.text, fontSize: 16)))),
+            Container(width: 1, height: 22, color: Colors.white10),
+            Expanded(child: TextButton(onPressed: toggleBot, child: Text(armed ? '■  Stop' : '▶  Start', style: TextStyle(color: th.text, fontSize: 16, fontWeight: FontWeight.w700)))),
+            Container(width: 1, height: 22, color: Colors.white10),
+            Expanded(child: TextButton(onPressed: () => setState(() => tabIdx = 2), child: Text('▦  Symbols', style: TextStyle(color: th.text, fontSize: 16)))),
+          ]),
+        ),
+        Padding(padding: const EdgeInsets.fromLTRB(16, 16, 16, 0), child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text('ROBOT LIST', style: TextStyle(color: th.muted, fontSize: 12)), GestureDetector(onTap: _addKeyDialog, child: Text('+ Add Key', style: TextStyle(color: th.accent)))])),
+        const SizedBox(height: 8),
+        if (hasRobot)
+          Container(margin: const EdgeInsets.symmetric(horizontal: 16), padding: const EdgeInsets.all(13), decoration: glowBox(color: th.card), child: Row(children: [
+            ClipRRect(borderRadius: BorderRadius.circular(22), child: _logoImg(kLogos[1], w: 44, h: 44)),
+            const SizedBox(width: 12),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('KAYVIEW CHARGER', style: TextStyle(fontWeight: FontWeight.w700, color: th.text)), Text(robotKey, style: TextStyle(fontFamily: 'monospace', color: th.muted, fontSize: 12)), Text('Key expires in 361d 15h', style: TextStyle(color: th.accent, fontSize: 12))])),
+            IconButton(onPressed: _confirmRemove, icon: Icon(Icons.delete_outline, color: th.accent)),
+          ]))
+        else
+          Container(margin: const EdgeInsets.symmetric(horizontal: 16), padding: const EdgeInsets.all(20), decoration: glowBox(color: th.card), child: Center(child: Text('No robots. Tap + Add Key', style: TextStyle(color: th.muted)))),
+        Padding(padding: const EdgeInsets.all(16), child: Text('Pair: $currentPair • Timeframe: $currentTF • Effect: ${kEffects[effectIdx]} • Theme changes whole UI including bottom buttons, KV ball, robot list and logos.', style: TextStyle(color: th.muted, fontSize: 12, height: 1.6))),
+      ],
+    );
   }
 
   Widget _scannerTab() {
-    return ListView(padding: const EdgeInsets.fromLTRB(16, 12, 16, 100), children: [
-      Row(mainAxisAlignment: MainAxisAlignment.end, children: [GestureDetector(onTap: _showNews, child: Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6), decoration: BoxDecoration(color: th.accent.withOpacity(0.15), borderRadius: BorderRadius.circular(20), border: Border.all(color: th.accent.withOpacity(0.5)),), child: Text('✨ NEWS', style: TextStyle(color: th.accent, fontWeight: FontWeight.w700)))))]),
-      const SizedBox(height: 10),
-      Center(child: Container(width: 72, height: 72, decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.black, border: Border.all(color: th.accent, width: 2)), child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [Text('KV', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18, color: th.text)), Text('AMBIENT HOST', style: TextStyle(fontSize: 7, letterSpacing: 1.2, color: th.accent))]))),
-      const SizedBox(height: 10),
-      Text('AI Analysis', textAlign: TextAlign.center, style: TextStyle(fontFamily: 'Georgia', fontSize: 24, color: th.text)),
-      Text('SNIPER ELITE • ENTRY HUNTER', textAlign: TextAlign.center, style: TextStyle(letterSpacing: 2, fontSize: 11, color: th.muted)),
-      const SizedBox(height: 10),
-      Text('1. Pick pair & timeframe\n2. Watch live BID/ASK\n3. Tap Analyse to fire the sniper', textAlign: TextAlign.center, style: TextStyle(color: th.muted, height: 1.8)),
-      const SizedBox(height: 16),
-      Container(padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: th.card, borderRadius: BorderRadius.circular(20), border: Border.all(color: th.accent.withOpacity(0.3))), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text('PAIR (PICK)', style: TextStyle(color: th.muted, fontSize: 11, letterSpacing: 1)),
-        const SizedBox(height: 6),
-        InkWell(onTap: _showPairs, child: Container(padding: const EdgeInsets.all(14), decoration: BoxDecoration(color: th.bg, borderRadius: BorderRadius.circular(12), border: Border.all(color: th.accent.withOpacity(0.42))), child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text(currentPair, style: TextStyle(fontWeight: FontWeight.w700, color: th.text)), Text('▾  Broker Pairs', style: TextStyle(color: th.accent))]))),
-        const SizedBox(height: 4),
-        Text('Broker: Any MT5 broker — tap to pick any pair + add custom suffix e.g. XAUUSD.m', style: TextStyle(color: th.muted, fontSize: 11)),
-        const SizedBox(height: 14),
-        Text('TIMEFRAME', style: TextStyle(color: th.muted, fontSize: 11, letterSpacing: 1)),
-        const SizedBox(height: 6),
-        Wrap(spacing: 6, runSpacing: 6, children: kTFs.map((tf) => ChoiceChip(label: Text(tf), selected: currentTF == tf, onSelected: (_) => setState(() => currentTF = tf), selectedColor: th.accent, labelStyle: TextStyle(color: currentTF == tf ? Colors.white : th.muted))).toList()),
-        const SizedBox(height: 14),
-        Row(children: [
-          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('LOT SIZE', style: TextStyle(color: th.muted, fontSize: 11)), const SizedBox(height: 6), TextField(controller: lotCtrl, decoration: InputDecoration(filled: true, fillColor: th.bg, border: OutlineInputBorder(borderRadius: BorderRadius.circular(12))))])),
-          const SizedBox(width: 12),
-          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('NUMBER OF TRADES', style: TextStyle(color: th.muted, fontSize: 11)), const SizedBox(height: 6), TextField(controller: tradesCtrl, keyboardType: TextInputType.number, decoration: InputDecoration(filled: true, fillColor: th.bg, border: OutlineInputBorder(borderRadius: BorderRadius.circular(12))))])),
-        ]),
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 100),
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.end,
+          children: [
+            GestureDetector(
+              onTap: _showNews,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(color: th.accent.withOpacity(0.15), borderRadius: BorderRadius.circular(20), border: Border.all(color: th.accent.withOpacity(0.5))),
+                child: Text('✨ NEWS', style: TextStyle(color: th.accent, fontWeight: FontWeight.w700)),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        Center(child: Container(width: 72, height: 72, decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.black, border: Border.all(color: th.accent, width: 2)), child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [Text('KV', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18, color: th.text)), Text('AMBIENT HOST', style: TextStyle(fontSize: 7, letterSpacing: 1.2, color: th.accent))]))),
+        const SizedBox(height: 10),
+        Text('AI Analysis', textAlign: TextAlign.center, style: TextStyle(fontFamily: 'Georgia', fontSize: 24, color: th.text)),
+        Text('SNIPER ELITE • ENTRY HUNTER', textAlign: TextAlign.center, style: TextStyle(letterSpacing: 2, fontSize: 11, color: th.muted)),
+        const SizedBox(height: 10),
+        Text('1. Pick pair & timeframe\n2. Watch live BID/ASK\n3. Tap Analyse to fire the sniper', textAlign: TextAlign.center, style: TextStyle(color: th.muted, height: 1.8)),
         const SizedBox(height: 16),
-        Container(padding: const EdgeInsets.all(14), decoration: BoxDecoration(color: th.bg, borderRadius: BorderRadius.circular(16), border: Border.all(color: th.accent.withOpacity(0.3))), child: Column(children: [
-          Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('LIVE QUOTE', style: TextStyle(color: th.muted, fontSize: 10, letterSpacing: 1.5)), Text(currentPair, style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: th.text))]), Text(armed ? 'Live - $currentPair @ ${livePrice.toStringAsFixed(5)}' : 'Fetching...', style: TextStyle(color: th.muted, fontSize: 12))]),
-          const SizedBox(height: 12),
-          Row(children: [
-            Expanded(child: Container(padding: const EdgeInsets.all(14), decoration: BoxDecoration(color: const Color(0xFF3A0A12), border: Border.all(color: Colors.red), borderRadius: BorderRadius.circular(14)), child: Column(children: [Text('BID', style: TextStyle(color: Colors.redAccent, letterSpacing: 2, fontSize: 11)), Text(livePrice.toStringAsFixed(5), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800))]))),
-            const SizedBox(width: 12),
-            Expanded(child: Container(padding: const EdgeInsets.all(14), decoration: BoxDecoration(color: const Color(0xFF0A2E1A), border: Border.all(color: Colors.green), borderRadius: BorderRadius.circular(14)), child: Column(children: [Text('ASK', style: TextStyle(color: Colors.greenAccent, letterSpacing: 2, fontSize: 11)), Text((livePrice + 0.00461).toStringAsFixed(5), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800))]))),
-          ]),
-          const SizedBox(height: 10),
-          Text('SPREAD 0.00461', style: TextStyle(color: th.muted, letterSpacing: 1.5, fontSize: 12)),
-        ])),
-        const SizedBox(height: 16),
-        SizedBox(width: double.infinity, child: ElevatedButton(onPressed: _analyse, style: ElevatedButton.styleFrom(backgroundColor: th.accent, padding: const EdgeInsets.symmetric(vertical: 16)), child: const Text('🎯 ANALYSE LIVE SIGNAL', style: TextStyle(fontWeight: FontWeight.w800)))),
-        const SizedBox(height: 12),
-        Container(padding: const EdgeInsets.all(14), decoration: BoxDecoration(color: th.bg, borderRadius: BorderRadius.circular(16), border: Border.all(color: th.accent.withOpacity(0.3))), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text('LIVE MARKET UPDATE • ICT', style: TextStyle(color: th.accent, fontSize: 11, letterSpacing: 1.5, fontWeight: FontWeight.w700)), Text('● $currentTF • LIVE', style: TextStyle(color: th.muted, fontSize: 11))]),
-          const SizedBox(height: 10),
-          if (signal == null) Text('No signal yet — tap ANALYSE. When a signal is found, full real live levels appear here.', style: TextStyle(color: th.muted))
-          else Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('SETUP', style: TextStyle(color: th.muted, fontSize: 10)), Text('Liquidity Sweep + MSS + Order Block Entry', style: TextStyle(fontWeight: FontWeight.w800, color: th.text))]), Column(crossAxisAlignment: CrossAxisAlignment.end, children: [Text('DIRECTION', style: TextStyle(color: th.muted, fontSize: 10)), Text(signal!['dir'], style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: signal!['dir'] == 'SELL' ? Colors.red : Colors.green))])]),
-            const SizedBox(height: 12),
-            Row(children: [Expanded(child: _signalBox('ENTRY', (signal!['entry'] as double).toStringAsFixed(5), '')), const SizedBox(width: 8), Expanded(child: _signalBox('SL', (signal!['sl'] as double).toStringAsFixed(5), '', color: Colors.red)), const SizedBox(width: 8), Expanded(child: _signalBox('TP1', (signal!['tp1'] as double).toStringAsFixed(5), ''))]),
-            const SizedBox(height: 8),
-            Text('TP2: ${(signal!['tp2'] as double).toStringAsFixed(5)}', style: TextStyle(color: th.text)),
-          ]),
-        ])),
-        const SizedBox(height: 12),
-        SizedBox(width: double.infinity, child: ElevatedButton(onPressed: signal == null ? null : _execute, style: ElevatedButton.styleFrom(backgroundColor: signal != null && signal!['dir'] == 'SELL' ? Colors.red : Colors.green, padding: const EdgeInsets.symmetric(vertical: 16)), child: Text((int.tryParse(tradesCtrl.text) ?? 1) <= 1 ? '▶ Execute Trade' : '▶ Execute Trades (${tradesCtrl.text})', style: const TextStyle(fontWeight: FontWeight.w800)))),
-        Center(child: Padding(padding: const EdgeInsets.only(top: 6), child: Text(signal == null ? 'Analyse first to unlock Execute' : 'Ready - ${signal!['dir']} $currentPair @ ${(signal!['entry'] as double).toStringAsFixed(5)}', style: TextStyle(color: th.muted, fontSize: 11)))),
-      ])),
-    ]);
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(color: th.card, borderRadius: BorderRadius.circular(20), border: Border.all(color: th.accent.withOpacity(0.3))),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('PAIR (PICK)', style: TextStyle(color: th.muted, fontSize: 11, letterSpacing: 1)),
+              const SizedBox(height: 6),
+              InkWell(onTap: _showPairs, child: Container(padding: const EdgeInsets.all(14), decoration: BoxDecoration(color: th.bg, borderRadius: BorderRadius.circular(12), border: Border.all(color: th.accent.withOpacity(0.42))), child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text(currentPair, style: TextStyle(fontWeight: FontWeight.w700, color: th.text)), Text('▾  Broker Pairs', style: TextStyle(color: th.accent))]))),
+              const SizedBox(height: 4),
+              Text('Broker: Any MT5 broker — tap to pick any pair + add custom suffix e.g. XAUUSD.m', style: TextStyle(color: th.muted, fontSize: 11)),
+              const SizedBox(height: 14),
+              Text('TIMEFRAME', style: TextStyle(color: th.muted, fontSize: 11, letterSpacing: 1)),
+              const SizedBox(height: 6),
+              Wrap(spacing: 6, runSpacing: 6, children: kTFs.map((tf) => ChoiceChip(label: Text(tf), selected: currentTF == tf, onSelected: (_) => setState(() => currentTF = tf), selectedColor: th.accent, labelStyle: TextStyle(color: currentTF == tf ? Colors.white : th.muted))).toList()),
+              const SizedBox(height: 14),
+              Row(children: [
+                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('LOT SIZE', style: TextStyle(color: th.muted, fontSize: 11)), const SizedBox(height: 6), TextField(controller: lotCtrl, decoration: InputDecoration(filled: true, fillColor: th.bg, border: OutlineInputBorder(borderRadius: BorderRadius.circular(12))))])),
+                const SizedBox(width: 12),
+                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('NUMBER OF TRADES', style: TextStyle(color: th.muted, fontSize: 11)), const SizedBox(height: 6), TextField(controller: tradesCtrl, keyboardType: TextInputType.number, decoration: InputDecoration(filled: true, fillColor: th.bg, border: OutlineInputBorder(borderRadius: BorderRadius.circular(12))))])),
+              ]),
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(color: th.bg, borderRadius: BorderRadius.circular(16), border: Border.all(color: th.accent.withOpacity(0.3))),
+                child: Column(children: [
+                  Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('LIVE QUOTE', style: TextStyle(color: th.muted, fontSize: 10, letterSpacing: 1.5)), Text(currentPair, style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: th.text))]), Text(armed ? 'Live - $currentPair @ ${livePrice.toStringAsFixed(5)}' : 'Fetching...', style: TextStyle(color: th.muted, fontSize: 12))]),
+                  const SizedBox(height: 12),
+                  Row(children: [
+                    Expanded(child: Container(padding: const EdgeInsets.all(14), decoration: BoxDecoration(color: const Color(0xFF3A0A12), border: Border.all(color: Colors.red), borderRadius: BorderRadius.circular(14)), child: Column(children: [Text('BID', style: TextStyle(color: Colors.redAccent, letterSpacing: 2, fontSize: 11)), Text(livePrice.toStringAsFixed(5), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800))]))),
+                    const SizedBox(width: 12),
+                    Expanded(child: Container(padding: const EdgeInsets.all(14), decoration: BoxDecoration(color: const Color(0xFF0A2E1A), border: Border.all(color: Colors.green), borderRadius: BorderRadius.circular(14)), child: Column(children: [Text('ASK', style: TextStyle(color: Colors.greenAccent, letterSpacing: 2, fontSize: 11)), Text((livePrice + 0.00461).toStringAsFixed(5), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800))]))),
+                  ]),
+                  const SizedBox(height: 10),
+                  Text('SPREAD 0.00461', style: TextStyle(color: th.muted, letterSpacing: 1.5, fontSize: 12)),
+                ]),
+              ),
+              const SizedBox(height: 16),
+              SizedBox(width: double.infinity, child: ElevatedButton(onPressed: _analyse, style: ElevatedButton.styleFrom(backgroundColor: th.accent, padding: const EdgeInsets.symmetric(vertical: 16)), child: const Text('🎯 ANALYSE LIVE SIGNAL', style: TextStyle(fontWeight: FontWeight.w800)))),
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(color: th.bg, borderRadius: BorderRadius.circular(16), border: Border.all(color: th.accent.withOpacity(0.3))),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text('LIVE MARKET UPDATE • ICT', style: TextStyle(color: th.accent, fontSize: 11, letterSpacing: 1.5, fontWeight: FontWeight.w700)), Text('● $currentTF • LIVE', style: TextStyle(color: th.muted, fontSize: 11))]),
+                  const SizedBox(height: 10),
+                  if (signal == null) Text('No signal yet — tap ANALYSE. When a signal is found, full real live levels appear here.', style: TextStyle(color: th.muted))
+                  else Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('SETUP', style: TextStyle(color: th.muted, fontSize: 10)), Text('Liquidity Sweep + MSS + Order Block Entry', style: TextStyle(fontWeight: FontWeight.w800, color: th.text))]), Column(crossAxisAlignment: CrossAxisAlignment.end, children: [Text('DIRECTION', style: TextStyle(color: th.muted, fontSize: 10)), Text(signal!['dir'], style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: signal!['dir'] == 'SELL' ? Colors.red : Colors.green))])]),
+                    const SizedBox(height: 12),
+                    Row(children: [Expanded(child: _signalBox('ENTRY', (signal!['entry'] as double).toStringAsFixed(5), '')), const SizedBox(width: 8), Expanded(child: _signalBox('SL', (signal!['sl'] as double).toStringAsFixed(5), '', color: Colors.red)), const SizedBox(width: 8), Expanded(child: _signalBox('TP1', (signal!['tp1'] as double).toStringAsFixed(5), ''))]),
+                    const SizedBox(height: 8),
+                    Text('TP2: ${(signal!['tp2'] as double).toStringAsFixed(5)}', style: TextStyle(color: th.text)),
+                  ]),
+                ]),
+              ),
+              const SizedBox(height: 12),
+              SizedBox(width: double.infinity, child: ElevatedButton(onPressed: signal == null ? null : _execute, style: ElevatedButton.styleFrom(backgroundColor: signal != null && signal!['dir'] == 'SELL' ? Colors.red : Colors.green, padding: const EdgeInsets.symmetric(vertical: 16)), child: Text((int.tryParse(tradesCtrl.text) ?? 1) <= 1 ? '▶ Execute Trade' : '▶ Execute Trades (${tradesCtrl.text})', style: const TextStyle(fontWeight: FontWeight.w800)))),
+              Center(child: Padding(padding: const EdgeInsets.only(top: 6), child: Text(signal == null ? 'Analyse first to unlock Execute' : 'Ready - ${signal!['dir']} $currentPair @ ${(signal!['entry'] as double).toStringAsFixed(5)}', style: TextStyle(color: th.muted, fontSize: 11)))),
+            ],
+          ),
+        ),
+      ],
+    );
   }
 
   Widget _signalBox(String label, String val, String sub, {Color? color}) {
@@ -374,44 +441,51 @@ class _KayviewAppState extends State<KayviewApp> with SingleTickerProviderStateM
   }
 
   Widget _mtTab() {
-    return ListView(padding: const EdgeInsets.fromLTRB(16, 12, 16, 100), children: [
-      Container(padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: th.card, borderRadius: BorderRadius.circular(16), border: Border.all(color: th.accent.withOpacity(0.22))), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text('▣ METATRADER', style: TextStyle(fontWeight: FontWeight.w800, color: th.text)),
-        const SizedBox(height: 10),
-        Text('Enter your broker login and tap Connect — the app links your account through the MetaCopier API. AI sniper signals will execute here automatically.', style: TextStyle(color: th.muted, height: 1.6)),
-        const SizedBox(height: 14),
-        Text('ACCOUNT ID', style: TextStyle(color: th.muted, fontSize: 11, letterSpacing: 1.2)),
-        TextField(controller: mtAccCtrl, decoration: InputDecoration(hintText: 'e.g. 297486970', filled: true, fillColor: th.bg, border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)))),
-        const SizedBox(height: 12),
-        Text('PASSWORD', style: TextStyle(color: th.muted, fontSize: 11, letterSpacing: 1.2)),
-        TextField(controller: mtPassCtrl, obscureText: true, decoration: InputDecoration(hintText: 'Trading password', filled: true, fillColor: th.bg, border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)))),
-        const SizedBox(height: 12),
-        Text('SERVER', style: TextStyle(color: th.muted, fontSize: 11, letterSpacing: 1.2)),
-        TextField(controller: mtServerCtrl, decoration: InputDecoration(hintText: 'e.g. Exness-MT5Trial9', filled: true, fillColor: th.bg, border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)))),
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 100),
+      children: [
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(color: th.card, borderRadius: BorderRadius.circular(16), border: Border.all(color: th.accent.withOpacity(0.22))),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('▣ METATRADER', style: TextStyle(fontWeight: FontWeight.w800, color: th.text)),
+            const SizedBox(height: 10),
+            Text('Enter your broker login and tap Connect — the app links your account through the MetaCopier API. AI sniper signals will execute here automatically.', style: TextStyle(color: th.muted, height: 1.6)),
+            const SizedBox(height: 14),
+            Text('ACCOUNT ID', style: TextStyle(color: th.muted, fontSize: 11, letterSpacing: 1.2)),
+            TextField(controller: mtAccCtrl, decoration: InputDecoration(hintText: 'e.g. 297486970', filled: true, fillColor: th.bg, border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)))),
+            const SizedBox(height: 12),
+            Text('PASSWORD', style: TextStyle(color: th.muted, fontSize: 11, letterSpacing: 1.2)),
+            TextField(controller: mtPassCtrl, obscureText: true, decoration: InputDecoration(hintText: 'Trading password', filled: true, fillColor: th.bg, border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)))),
+            const SizedBox(height: 12),
+            Text('SERVER', style: TextStyle(color: th.muted, fontSize: 11, letterSpacing: 1.2)),
+            TextField(controller: mtServerCtrl, decoration: InputDecoration(hintText: 'e.g. Exness-MT5Trial9', filled: true, fillColor: th.bg, border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)))),
+            const SizedBox(height: 16),
+            SizedBox(width: double.infinity, child: ElevatedButton(onPressed: () {
+              if (mtAccCtrl.text.isEmpty || mtPassCtrl.text.isEmpty || mtServerCtrl.text.isEmpty) { toast('Fill Account ID, Password and Server'); return; }
+              setState(() { mtConnected = true; mtStatus = 'Connected to ${mtServerCtrl.text} — Account ${mtAccCtrl.text} — PHE-KAYVIEW CHARGER'; });
+              toast('Connected to MetaTrader — ${mtServerCtrl.text}');
+            }, style: ElevatedButton.styleFrom(backgroundColor: mtConnected ? Colors.green : th.accent, padding: const EdgeInsets.symmetric(vertical: 14)), child: Text(mtConnected ? '✓ CONNECTED' : '⏻ CONNECT', style: const TextStyle(fontWeight: FontWeight.w800)))),
+            Center(child: Padding(padding: const EdgeInsets.only(top: 12), child: Text(mtStatus, textAlign: TextAlign.center, style: TextStyle(color: th.muted, fontSize: 11)))),
+          ]),
+        ),
         const SizedBox(height: 16),
-        SizedBox(width: double.infinity, child: ElevatedButton(onPressed: () {
-          if (mtAccCtrl.text.isEmpty || mtPassCtrl.text.isEmpty || mtServerCtrl.text.isEmpty) { toast('Fill Account ID, Password and Server'); return; }
-          setState(() { mtConnected = true; mtStatus = 'Connected to ${mtServerCtrl.text} — Account ${mtAccCtrl.text} — PHE-KAYVIEW CHARGER'; });
-          toast('Connected to MetaTrader — ${mtServerCtrl.text}');
-        }, style: ElevatedButton.styleFrom(backgroundColor: mtConnected ? Colors.green : th.accent, padding: const EdgeInsets.symmetric(vertical: 14)), child: Text(mtConnected ? '✓ CONNECTED' : '⏻ CONNECT', style: const TextStyle(fontWeight: FontWeight.w800)))),
-        Center(child: Padding(padding: const EdgeInsets.only(top: 12), child: Text(mtStatus, textAlign: TextAlign.center, style: TextStyle(color: th.muted, fontSize: 11)))),
-      ])),
-      const SizedBox(height: 16),
-      Text('MT5 — LIVE POSITIONS', style: TextStyle(color: Colors.greenAccent, letterSpacing: 1.5, fontSize: 11, fontWeight: FontWeight.w700)),
-      const SizedBox(height: 8),
-      if (mt5Trades.isEmpty) Text('No open positions yet.', style: TextStyle(color: th.muted))
-      else ...mt5Trades.map((t) => Container(margin: const EdgeInsets.only(bottom: 10), padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: const Color(0xFF0A0F1E), borderRadius: BorderRadius.circular(14), border: Border.all(color: Colors.white12)), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text('${t['pair']} • ${t['dir']}', style: const TextStyle(fontWeight: FontWeight.w700, color: Colors.white)), Text('Live ${livePrice.toStringAsFixed(5)}', style: const TextStyle(color: Colors.white70, fontSize: 12))]),
-        const SizedBox(height: 6),
-        Text('Lot ${t['lot']} • Entry ${(t['entry'] as double).toStringAsFixed(5)} • SL ${(t['sl'] as double).toStringAsFixed(5)} • TP1 ${(t['tp1'] as double).toStringAsFixed(5)} • Ticket ${t['id']}', style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 12, height: 1.6)),
-        const SizedBox(height: 10),
-        Row(children: [
-          Expanded(child: ElevatedButton(onPressed: () => setState(() => mt5Trades.remove(t)), style: ElevatedButton.styleFrom(backgroundColor: Colors.red), child: const Text('Close position'))),
-          const SizedBox(width: 8),
-          Expanded(child: OutlinedButton(onPressed: () => _openMT5(), style: OutlinedButton.styleFrom(side: const BorderSide(color: Colors.green)), child: const Text('MT5', style: TextStyle(color: Colors.greenAccent)))),
-        ]),
-      ]))).toList(),
-    ]);
+        Text('MT5 — LIVE POSITIONS', style: TextStyle(color: Colors.greenAccent, letterSpacing: 1.5, fontSize: 11, fontWeight: FontWeight.w700)),
+        const SizedBox(height: 8),
+        if (mt5Trades.isEmpty) Text('No open positions yet.', style: TextStyle(color: th.muted))
+        else ...mt5Trades.map((t) => Container(margin: const EdgeInsets.only(bottom: 10), padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: const Color(0xFF0A0F1E), borderRadius: BorderRadius.circular(14), border: Border.all(color: Colors.white12)), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text('${t['pair']} • ${t['dir']}', style: const TextStyle(fontWeight: FontWeight.w700, color: Colors.white)), Text('Live ${livePrice.toStringAsFixed(5)}', style: const TextStyle(color: Colors.white70, fontSize: 12))]),
+          const SizedBox(height: 6),
+          Text('Lot ${t['lot']} • Entry ${(t['entry'] as double).toStringAsFixed(5)} • SL ${(t['sl'] as double).toStringAsFixed(5)} • TP1 ${(t['tp1'] as double).toStringAsFixed(5)} • Ticket ${t['id']}', style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 12, height: 1.6)),
+          const SizedBox(height: 10),
+          Row(children: [
+            Expanded(child: ElevatedButton(onPressed: () => setState(() => mt5Trades.remove(t)), style: ElevatedButton.styleFrom(backgroundColor: Colors.red), child: const Text('Close position'))),
+            const SizedBox(width: 8),
+            Expanded(child: OutlinedButton(onPressed: () => _openMT5(), style: OutlinedButton.styleFrom(side: const BorderSide(color: Colors.green)), child: const Text('MT5', style: TextStyle(color: Colors.greenAccent)))),
+          ]),
+        ]))).toList(),
+      ],
+    );
   }
 
   Future<void> _openMT5() async {
@@ -421,26 +495,50 @@ class _KayviewAppState extends State<KayviewApp> with SingleTickerProviderStateM
   }
 
   Widget _settingsTab() {
-    return ListView(padding: const EdgeInsets.fromLTRB(16, 12, 16, 100), children: [
-      Text('Settings', style: TextStyle(fontFamily: 'Georgia', fontSize: 20, color: th.text)),
-      const SizedBox(height: 14),
-      _setCard('Font', 'Space Grotesk', 'Change', () => toast('Font: Space Grotesk')),
-      _setCard('Theme', '${th.name} - ${themeIdx + 1} of 10', 'Change', _showThemes),
-      _setCard('Background Effect', kEffects[effectIdx], 'Change', _showEffects),
-      _setCard('AI Strategy', 'Auto - Full confluence stack', 'Change', () => toast('AI Strategy: Auto')),
-      _setCard('Avatar Size', '${avatarSize.toInt()}px • 720p logo stays sharp', '', null, slider: true),
-      // UI LOGO - 10 logos
-      Container(padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: th.card, borderRadius: BorderRadius.circular(16), border: Border.all(color: th.accent.withOpacity(0.22))), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('UI LOGO', style: TextStyle(color: th.muted, fontSize: 11, letterSpacing: 1.2)), Text(kLogoNames[logoIdx], style: TextStyle(fontWeight: FontWeight.w700, color: th.text, fontSize: 15)), Text('10 logos - tap any logo to set it as your Home image', style: TextStyle(color: th.muted, fontSize: 12))]), Text('Change', style: TextStyle(color: th.muted))]),
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 100),
+      children: [
+        Text('Settings', style: TextStyle(fontFamily: 'Georgia', fontSize: 20, color: th.text)),
         const SizedBox(height: 14),
-        GridView.builder(shrinkWrap: true, physics: const NeverScrollableScrollPhysics(), gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 2, crossAxisSpacing: 10, mainAxisSpacing: 10, childAspectRatio: 1.35), itemCount: kLogos.length, itemBuilder: (c, i) {
-          final sel = i == logoIdx;
-          return GestureDetector(onTap: () => setState(() { logoIdx = i; toast('Home logo: ${kLogoNames[i]}'); }), child: Container(decoration: BoxDecoration(borderRadius: BorderRadius.circular(12), border: Border.all(color: sel ? const Color(0xFFC084FC) : th.accent.withOpacity(0.3), width: 2), boxShadow: sel ? [BoxShadow(color: const Color(0xFFC084FC).withOpacity(0.7), blurRadius: 14)] : []), child: ClipRRect(borderRadius: BorderRadius.circular(10), child: Stack(children: [Image.asset(kLogos[i], width: double.infinity, height: double.infinity, fit: BoxFit.cover), if (sel) const Positioned(top: 6, right: 6, child: CircleAvatar(radius: 11, backgroundColor: Color(0xFFC084FC), child: Icon(Icons.check, size: 13, color: Colors.white))), Positioned(bottom: 0, left: 0, right: 0, child: Container(color: const Color(0xFF140626), padding: const EdgeInsets.symmetric(vertical: 4), child: Text(kLogoNames[i], textAlign: TextAlign.center, style: const TextStyle(fontSize: 11, color: Color(0xFFC8B8E0)))))]))));
-        }),
-      ])),
-      const SizedBox(height: 12),
-      Container(padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: th.card, borderRadius: BorderRadius.circular(16)), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('AMBIENT HOST EA - VOICE CONTROL', style: TextStyle(color: th.muted, fontSize: 11, letterSpacing: 1.2)), const SizedBox(height: 6), Text('Say "Hello Ambient Host EA" then a command', style: TextStyle(color: th.muted, fontSize: 12, height: 1.6))])),
-    ]);
+        _setCard('Font', 'Space Grotesk', 'Change', () => toast('Font: Space Grotesk')),
+        _setCard('Theme', '${th.name} - ${themeIdx + 1} of 10', 'Change', _showThemes),
+        _setCard('Background Effect', kEffects[effectIdx], 'Change', _showEffects),
+        _setCard('AI Strategy', 'Auto - Full confluence stack', 'Change', () => toast('AI Strategy: Auto')),
+        _setCard('Avatar Size', '${avatarSize.toInt()}px • 720p logo stays sharp', '', null, slider: true),
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(color: th.card, borderRadius: BorderRadius.circular(16), border: Border.all(color: th.accent.withOpacity(0.22))),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('UI LOGO', style: TextStyle(color: th.muted, fontSize: 11, letterSpacing: 1.2)), Text(kLogoNames[logoIdx], style: TextStyle(fontWeight: FontWeight.w700, color: th.text, fontSize: 15)), Text('10 logos - tap any logo to set it as your Home image', style: TextStyle(color: th.muted, fontSize: 12))]), Text('Change', style: TextStyle(color: th.muted))]),
+            const SizedBox(height: 14),
+            GridView.builder(
+              shrinkWrap: true, physics: const NeverScrollableScrollPhysics(),
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 2, crossAxisSpacing: 10, mainAxisSpacing: 10, childAspectRatio: 1.35),
+              itemCount: kLogos.length,
+              itemBuilder: (c, i) {
+                final sel = i == logoIdx;
+                return GestureDetector(
+                  onTap: () => setState(() { logoIdx = i; toast('Home logo: ${kLogoNames[i]}'); }),
+                  child: Container(
+                    decoration: BoxDecoration(borderRadius: BorderRadius.circular(12), border: Border.all(color: sel ? const Color(0xFFC084FC) : th.accent.withOpacity(0.3), width: 2)),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(10),
+                      child: Stack(children: [
+                        _logoImg(kLogos[i], w: double.infinity, h: double.infinity),
+                        if (sel) const Positioned(top: 6, right: 6, child: CircleAvatar(radius: 11, backgroundColor: Color(0xFFC084FC), child: Icon(Icons.check, size: 13, color: Colors.white))),
+                        Positioned(bottom: 0, left: 0, right: 0, child: Container(color: const Color(0xFF140626), padding: const EdgeInsets.symmetric(vertical: 4), child: Text(kLogoNames[i], textAlign: TextAlign.center, style: const TextStyle(fontSize: 11, color: Color(0xFFC8B8E0))))),
+                      ]),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ]),
+        ),
+        const SizedBox(height: 12),
+        Container(padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: th.card, borderRadius: BorderRadius.circular(16)), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('AMBIENT HOST EA - VOICE CONTROL', style: TextStyle(color: th.muted, fontSize: 11, letterSpacing: 1.2)), const SizedBox(height: 6), Text('Say "Hello Ambient Host EA" then a command', style: TextStyle(color: th.muted, fontSize: 12, height: 1.6))])),
+      ],
+    );
   }
 
   Widget _setCard(String label, String val, String action, VoidCallback? onTap, {bool slider = false}) {
@@ -453,11 +551,52 @@ class _KayviewAppState extends State<KayviewApp> with SingleTickerProviderStateM
   }
 
   void _showThemes() {
-    showModalBottomSheet(context: context, backgroundColor: th.card, shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))), builder: (_) => Padding(padding: const EdgeInsets.all(20), child: Column(mainAxisSize: MainAxisSize.min, children: [Text('Themes - 10', style: TextStyle(fontWeight: FontWeight.w800, color: th.text)), const SizedBox(height: 12), GridView.builder(shrinkWrap: true, gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 2, crossAxisSpacing: 10, mainAxisSpacing: 10), itemCount: kThemes.length, itemBuilder: (c, i) => GestureDetector(onTap: () { setState(() => themeIdx = i); Navigator.pop(context); toast('Theme: ${kThemes[i].name} - whole UI changed'); }, child: Container(decoration: BoxDecoration(color: th.card2, borderRadius: BorderRadius.circular(14), border: Border.all(color: i == themeIdx ? th.accent : Colors.transparent)), child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [CircleAvatar(backgroundColor: kThemes[i].accent, radius: 14), const SizedBox(height: 8), Text('${i + 1}. ${kThemes[i].name}', style: TextStyle(color: th.text, fontWeight: FontWeight.w700))]))))]))));
+    showModalBottomSheet(
+      context: context, backgroundColor: th.card,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (_) => Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Text('Themes - 10', style: TextStyle(fontWeight: FontWeight.w800, color: th.text)),
+          const SizedBox(height: 12),
+          GridView.builder(
+            shrinkWrap: true,
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 2, crossAxisSpacing: 10, mainAxisSpacing: 10),
+            itemCount: kThemes.length,
+            itemBuilder: (c, i) => GestureDetector(
+              onTap: () { setState(() => themeIdx = i); Navigator.pop(context); toast('Theme: ${kThemes[i].name} - whole UI changed'); },
+              child: Container(
+                decoration: BoxDecoration(color: th.card2, borderRadius: BorderRadius.circular(14), border: Border.all(color: i == themeIdx ? th.accent : Colors.transparent)),
+                child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [CircleAvatar(backgroundColor: kThemes[i].accent, radius: 14), const SizedBox(height: 8), Text('${i + 1}. ${kThemes[i].name}', style: TextStyle(color: th.text, fontWeight: FontWeight.w700))]),
+              ),
+            ),
+          ),
+        ]),
+      ),
+    );
   }
 
   void _showEffects() {
-    showModalBottomSheet(context: context, backgroundColor: th.card, shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))), builder: (_) => Padding(padding: const EdgeInsets.all(20), child: Column(mainAxisSize: MainAxisSize.min, children: [Text('Background Effects — 10', style: TextStyle(fontWeight: FontWeight.w800, color: th.text)), const SizedBox(height: 12), GridView.builder(shrinkWrap: true, gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 2, crossAxisSpacing: 10, mainAxisSpacing: 10), itemCount: kEffects.length, itemBuilder: (c, i) => GestureDetector(onTap: () { setState(() => effectIdx = i); Navigator.pop(context); toast('Background: ${kEffects[i]}'); }, child: Container(decoration: BoxDecoration(color: th.card2, borderRadius: BorderRadius.circular(14)), child: Center(child: Text(kEffects[i], style: TextStyle(color: th.text, fontWeight: FontWeight.w700))))))]))));
+    showModalBottomSheet(
+      context: context, backgroundColor: th.card,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (_) => Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Text('Background Effects — 10', style: TextStyle(fontWeight: FontWeight.w800, color: th.text)),
+          const SizedBox(height: 12),
+          GridView.builder(
+            shrinkWrap: true,
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 2, crossAxisSpacing: 10, mainAxisSpacing: 10),
+            itemCount: kEffects.length,
+            itemBuilder: (c, i) => GestureDetector(
+              onTap: () { setState(() => effectIdx = i); Navigator.pop(context); toast('Background: ${kEffects[i]}'); },
+              child: Container(decoration: BoxDecoration(color: th.card2, borderRadius: BorderRadius.circular(14)), child: Center(child: Text(kEffects[i], style: TextStyle(color: th.text, fontWeight: FontWeight.w700)))),
+            ),
+          ),
+        ]),
+      ),
+    );
   }
 
   void _showPairs() {
@@ -539,7 +678,6 @@ class _KayviewAppState extends State<KayviewApp> with SingleTickerProviderStateM
         backgroundColor: th.bg,
         body: Stack(children: [
           IndexedStack(index: tabIdx, children: [_homeTab(), _mtTab(), _scannerTab(), _settingsTab()]),
-          // KV FLOATING BALL - draggable, pink when running, grey when stopped, tap = PLAY/STOP
           Positioned(
             left: kvX, top: kvY,
             child: GestureDetector(
