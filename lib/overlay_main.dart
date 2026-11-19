@@ -34,9 +34,6 @@ class _OverlayBallState extends State<OverlayBall> {
             setState(() => running = !running);
             FlutterOverlayWindow.shareData(running ? 'running' : 'stopped');
           },
-          onPanUpdate: (d) {
-            FlutterOverlayWindow.moveOverlay(OverlayPosition(d.globalPosition.dx - 29, d.globalPosition.dy - 29));
-          },
           child: Container(
             width: 58, height: 58,
             decoration: BoxDecoration(
